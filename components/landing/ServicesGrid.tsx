@@ -120,13 +120,13 @@ function StepCard({
 
 export default function ServicesGrid() {
   return (
-    <section id="how-it-works" className="py-14 px-12 max-w-7xl mx-auto">
+    <section id="how-it-works" className="md:py-14 py-6 md:px-12 px-5 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8 text-center">
         <p className="text-brand-secondary uppercase tracking-widest text-sm font-bold mb-3">
           How It Works
         </p>
-        <h2 className="text-4xl md:text-5xl w-3xl mx-auto font-bold leading-tight text-brand-primary mb-4">
+        <h2 className="text-3xl md:text-5xl md:w-3xl mx-auto font-bold leading-tight text-brand-primary mb-4">
           Simple for patients.{" "}
           <span className="text-brand-secondary">Powerful for doctors.</span>
         </h2>
@@ -138,7 +138,7 @@ export default function ServicesGrid() {
       </div>
 
       {/* Two-column step layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 w-[90%] mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 md:w-[90%] mx-auto">
         {/* Patients Column */}
         <div className="bg-primary p-8 ">
           <div className="flex items-center gap-2 mb-8">

@@ -3,12 +3,10 @@ export default function Footer() {
     <footer className="bg-white py-12 px-8 border-t border-gray-200">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
         <div className="max-w-xs">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-brand-secondary rounded-full flex items-center justify-center font-bold text-white">
-              M
-            </div>
-            <span className="text-xl font-bold text-brand-primary tracking-tight">Mednoris</span>
-          </div>
+          <div className="flex items-center gap-2">
+                <img src="/logo.png" alt="Mednoris" className="w-20 h-20" />     
+                     
+                      </div>
           <p className="text-gray-500 text-sm">
             The privacy-first digital healthcare ecosystem where patients own their records and connect with global specialists.
           </p>

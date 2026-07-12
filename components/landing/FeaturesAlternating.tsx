@@ -92,7 +92,7 @@ export default function FeaturesAlternating() {
   const cfg = tabConfig[active];
 
   return (
-    <section id="features" className="py-14 px-8 max-w-7xl mx-auto">
+    <section id="features" className="md:py-14 py-8 px-8 max-w-7xl mx-auto">
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8">
         {/* Left: text */}
@@ -100,7 +100,7 @@ export default function FeaturesAlternating() {
           <p className="text-brand-secondary uppercase tracking-widest text-sm font-bold mb-3">
             Everything You Need
           </p>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-brand-primary mb-3">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-brand-primary mb-3">
            Built for patients.<span className="text-secondary">Trusted by doctors. </span>
           </h2>
           <p className="text-gray-500 text-lg max-w-2xl">

@@ -13,7 +13,7 @@ export default function CtaBanner() {
         viewport={{ once: true }}
         className="relative z-10 max-w-3xl mx-auto flex flex-col items-center gap-6"
       >
-        <h2 className="text-3xl md:text-4xl w-lg font-bold">
+        <h2 className="text-3xl md:text-4xl md:w-lg font-bold">
 Own your records. Connect with trusted doctors.
 </h2>
 

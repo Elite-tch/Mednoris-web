@@ -5,13 +5,13 @@ import Link from "next/link";
 
 export default function AboutSection() {
   return (
-    <section id="about" className="py-14 px-8 max-w-7xl mx-auto flex flex-col md:flex-row gap-16 items-center">
+    <section id="about" className="md:py-14 py-10 px-5 md:px-8 max-w-7xl mx-auto flex flex-col md:flex-row gap-8 md:gap-16 items-center">
       <div className="flex-1">
         <motion.h2 
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="text-4xl font-bold text-brand-primary mb-6"
+          className="text-3xl md:text-4xl font-bold text-brand-primary mb-3 md:mb-6"
         >
       Healthcare should move with you.
         </motion.h2>
