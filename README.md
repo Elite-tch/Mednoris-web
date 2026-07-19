@@ -1,5 +1,7 @@
 # Mednoris
 
+<img width="1902" height="863" alt="Screenshot (3314)" src="https://github.com/user-attachments/assets/2ed84ad0-b4df-4b42-b0e9-65ae345b791e" />
+
 A privacy-first healthcare platform that gives patients control over their medical records while enabling secure consultations with verified doctors.
 
 Mednoris brings secure medical records, online consultations, and doctor discovery into one platform, making it easier for patients to access healthcare while maintaining full control over who can view their health information.
