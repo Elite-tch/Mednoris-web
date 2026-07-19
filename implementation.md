@@ -31,6 +31,7 @@ The application will be divided into distinct routing areas. Here is the breakdo
 - **Medical Timeline / Vault**: Chronological history of uploaded records, test results, and consultation summaries.
 - **Upload Section**: Drag-and-drop interface for securely uploading new medical files.
 - **Permissions Manager**: A list of doctors who currently have access, the time remaining, and a one-click "Revoke Access" button.
+- **AI Assistant, Family, Settings.**
 
 ### Page 3: Doctor Marketplace (`/patient/marketplace`)
 *Where patients discover and book healthcare professionals.*
@@ -40,11 +41,12 @@ The application will be divided into distinct routing areas. Here is the breakdo
 
 ### Page 4: Doctor Portal (`/doctor/dashboard`)
 *The control center for verified healthcare professionals.*
-- **Consultations Overview**: Dashboard summary of today's schedule and recent earnings.
+- **Consultations Overview**: Dashboard summary of today's schedule and recent earnings. profile
 - **All Appointments**: Comprehensive list of all patient appointments (upcoming, completed, cancelled).
 - **Availability Manager**: Calendar UI to set working hours and block off time slots.
 - **Chat System**: Secure messaging interface to communicate with patients.
 - **Notifications**: Alerts for new appointment requests, patient record access approvals, and incoming messages.
+ai-assistant , setting 
 
 ### Page 5: Patient Public Profile (Doctor's View) (`/doctor/patient/[id]`)
 *The dedicated consultation room and record viewer for doctors.*
@@ -84,7 +86,7 @@ Doctors have a strict verification requirement before they can access the market
 3. **Professional Profile**:
    - Full Name & Professional Title
    - Specializations & Languages Spoken
-   - Biography & Consultation Fee
+   - Biography
 4. **Verification Document Upload**:
    - Government-issued ID
    - Valid Medical License
