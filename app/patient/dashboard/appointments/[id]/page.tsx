@@ -10,7 +10,7 @@ import { useEffect as useEffectTimer, useState as useStateTimer } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Toast, { ToastType } from "@/components/ui/Toast";
-
+import Link from "next/link";
 const symptomOnsetOptions = [
   "Today",
   "A few days ago",

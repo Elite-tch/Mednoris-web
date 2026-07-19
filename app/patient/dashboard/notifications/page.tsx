@@ -20,7 +20,8 @@ export default function PatientNotificationsPage() {
       orderBy("createdAt", "desc")
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+     // const notifs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const notifs = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       setNotifications(notifs);
       setLoading(false);
 

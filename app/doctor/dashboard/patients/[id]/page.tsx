@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePrivy } from "@privy-io/react-auth";
+import Link from "next/link";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
