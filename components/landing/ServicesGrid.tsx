@@ -158,7 +158,7 @@ export default function ServicesGrid() {
         <div className="bg-primary p-8">
           <div className="flex items-center gap-2 mb-8">
             <span className="w-2 h-2 rounded-full bg-gray-100 inline-block" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-10">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-white">
               For Doctors
             </h3>
           </div>
