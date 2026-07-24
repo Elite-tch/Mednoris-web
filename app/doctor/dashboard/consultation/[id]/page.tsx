@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Loader2, ArrowLeft, MessageSquare, ShieldAlert } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
 
 import VideoRoom from "@/components/consultation/VideoRoom";
 import ConsultationChat from "@/components/consultation/ConsultationChat";
 import DoctorTools from "@/components/consultation/DoctorTools";
 import PatientTools from "@/components/consultation/PatientTools";
+import { useCallTimer } from "@/hooks/useCallTimer";
 
 export default function ConsultationRoomPage() {
   const { id } = useParams();
@@ -21,6 +22,8 @@ export default function ConsultationRoomPage() {
   const [appointment, setAppointment] = useState<any>(null);
   const [isDoctor, setIsDoctor] = useState(false);
   const [activeRightPanelTab, setActiveRightPanelTab] = useState<"chat" | "tools">("tools");
+  const [toast, setToast] = useState<string | null>(null);
+  const [warningDismissed, setWarningDismissed] = useState(false);
 
   useEffect(() => {
     const fetchAppointment = async () => {
@@ -29,6 +32,17 @@ export default function ConsultationRoomPage() {
         const snap = await getDoc(doc(db, "appointments", id as string));
         if (snap.exists()) {
           const data = snap.data();
+
+          // Fallback: fetch patient name from patients collection if missing or saved as generic "Patient"
+          if ((!data.patientName || data.patientName === "Patient") && data.patientId) {
+            try {
+              const pSnap = await getDoc(doc(db, "patients", data.patientId));
+              if (pSnap.exists()) {
+                data.patientName = pSnap.data().fullName || "Patient";
+              }
+            } catch (_) {}
+          }
+
           setAppointment(data);
           
           if (data.doctorId === user.id) {
@@ -48,6 +62,13 @@ export default function ConsultationRoomPage() {
     
     fetchAppointment();
   }, [user, id]);
+
+  const handleExpire = useCallback(() => {
+    setToast("Your consultation time has ended. The call has been closed.");
+    setTimeout(() => router.back(), 3500);
+  }, [router]);
+
+  const { timeRemaining, showWarning } = useCallTimer(appointment, handleExpire);
 
   if (!user || loading) {
     return (
@@ -79,9 +100,37 @@ export default function ConsultationRoomPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col overflow-hidden bg-transparent">
+    <div className="h-[calc(100vh-120px)] flex flex-col overflow-hidden bg-transparent relative">
+
+      {/* Expire Toast */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[999] flex items-center gap-3 bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl animate-fade-in">
+          <AlertTriangle size={20} />
+          <span className="font-bold text-sm">{toast}</span>
+        </div>
+      )}
+
+      {/* 5-min Warning Banner */}
+      {showWarning && !warningDismissed && (
+        <div className="shrink-0 mb-3 flex items-center gap-3 bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 rounded-2xl shadow-sm animate-fade-in">
+          <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shrink-0">
+            <Clock size={16} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-extrabold text-sm">Less than 5 minutes remaining!</p>
+            <p className="text-xs text-amber-700 mt-0.5">Your consultation session will end soon. Time left: <span className="font-bold font-mono">{timeRemaining}</span></p>
+          </div>
+          <button
+            onClick={() => setWarningDismissed(true)}
+            className="text-amber-600 hover:text-amber-800 text-xs font-bold cursor-pointer px-2"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header Info */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-4 shrink-0">
         <div className="flex items-center gap-3">
           <button 
              onClick={() => router.back()}
@@ -92,13 +141,22 @@ export default function ConsultationRoomPage() {
            <div>
              <h1 className="font-extrabold text-brand-primary text-xl">Consultation Room</h1>
              <p className="text-xs font-semibold text-gray-400">
-               {isDoctor ? `Patient: ${appointment.patientName}` : `Dr. ${appointment.doctorName}`}
+               Patient: {appointment.patientName || "Loading..."}
              </p>
            </div>
         </div>
-        <div className="px-4 py-1.5 bg-red-50 border border-red-100 rounded-full flex items-center gap-2 shadow-sm">
-           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-           <span className="text-xs font-bold text-red-600 font-mono tracking-widest">LIVE</span>
+        {/* LIVE badge + countdown */}
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+          {timeRemaining && (
+            <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 font-mono text-xs font-bold shadow-sm transition-colors ${showWarning ? 'bg-amber-100 border border-amber-300 text-amber-700' : 'bg-gray-100 border border-gray-200 text-gray-600'}`}>
+              <Clock size={12} />
+              {timeRemaining}
+            </div>
+          )}
+          <div className="px-4 py-1.5 bg-red-50 border border-red-100 rounded-full flex items-center gap-2 shadow-sm">
+             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+             <span className="text-xs font-bold text-red-600 font-mono tracking-widest">LIVE</span>
+          </div>
         </div>
       </div>
 

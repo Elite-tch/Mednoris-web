@@ -13,8 +13,43 @@ const tabs = ["Scheduled", "Completed", "Cancelled"];
 const statusIcon = { Scheduled: CalendarClock, Completed: CheckCircle2, Cancelled: XCircle };
 const statusColor = { 
   Scheduled: "text-brand-secondary bg-brand-secondary/10", 
-  Completed: "text-green-600 bg-green-50", 
+  Completed: "text-brand-primary bg-brand-primary/10", 
   Cancelled: "text-red-500 bg-red-50" 
+};
+
+const calculateDynamicStatus = (appointment: any) => {
+  if (appointment.status !== "Scheduled") return appointment.status;
+
+  const [hours, minutes] = (appointment.startTime || "00:00").split(':').map(Number);
+  let targetDate;
+
+  if (appointment.appointmentDate) {
+    targetDate = new Date(appointment.appointmentDate);
+    targetDate.setHours(hours, minutes, 0, 0);
+  } else {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const targetDay = days.indexOf(appointment.day);
+    targetDate = new Date();
+    targetDate.setHours(hours, minutes, 0, 0);
+    let currentDay = targetDate.getDay();
+    let diff = targetDay - currentDay;
+    if (diff < 0) diff += 7;
+    targetDate.setDate(targetDate.getDate() + diff);
+  }
+
+  const endTime = new Date(targetDate.getTime());
+  if (appointment.endTime) {
+    const [eH, eM] = appointment.endTime.split(":").map(Number);
+    endTime.setHours(eH, eM, 0, 0);
+  } else {
+    endTime.setHours(endTime.getHours() + 1);
+  }
+
+  if (endTime.getTime() - new Date().getTime() <= 0) {
+    return "Completed";
+  }
+
+  return "Scheduled";
 };
 
 export default function DoctorAppointmentsPage() {
@@ -44,14 +79,16 @@ export default function DoctorAppointmentsPage() {
         const resolvedAppts = await Promise.all(
           rawAppts.map(async (appt: any) => {
             if (!appt.patientId) {
-              return { ...appt, patientName: "Patient", patientImage: null };
+              const finalAppt = { ...appt, patientName: "Patient", patientImage: null };
+              return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
             }
             if (patientCache[appt.patientId]) {
-              return {
+              const finalAppt = {
                 ...appt,
                 patientName: patientCache[appt.patientId].name,
                 patientImage: patientCache[appt.patientId].image,
               };
+              return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
             }
             try {
               const pSnap = await getDoc(doc(db, "patients", appt.patientId));
@@ -62,19 +99,27 @@ export default function DoctorAppointmentsPage() {
                   image: pData.profileImage || null,
                 };
                 patientCache[appt.patientId] = details;
-                return {
+                const finalAppt = {
                   ...appt,
                   patientName: details.name,
                   patientImage: details.image,
                 };
+                return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
               }
-            } catch (err) {
-              console.error("Error fetching patient profile:", err);
+            } catch (e) {
+              // Ignore fetch error
             }
-            return { ...appt, patientName: "Patient", patientImage: null };
+            const fallbackAppt = { ...appt, patientName: "Patient", patientImage: null };
+            return { ...fallbackAppt, status: calculateDynamicStatus(fallbackAppt) };
           })
         );
 
+        // Sort: newest booking first
+        resolvedAppts.sort((a, b) => {
+          const aTime = a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt ?? 0).getTime();
+          const bTime = b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt ?? 0).getTime();
+          return bTime - aTime;
+        });
         setAppointments(resolvedAppts);
       } catch (err) {
         console.error("Error loading appointments:", err);
@@ -97,7 +142,7 @@ export default function DoctorAppointmentsPage() {
       <p className="text-gray-400 text-sm mb-8">Manage your patient consultations and schedule.</p>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 bg-white rounded-2xl p-2 shadow-sm border border-gray-100 w-fit">
+      <div className="flex flex-wrap gap-2 mb-6 bg-white rounded-2xl p-2 shadow-sm border border-gray-100 w-full sm:w-fit">
         {tabs.map((t) => (
           <button key={t} onClick={() => setActive(t)}
             className={`px-5 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${active === t ? "bg-brand-secondary text-white" : "text-gray-400 hover:text-brand-primary"}`}>
@@ -114,7 +159,7 @@ export default function DoctorAppointmentsPage() {
         <div className="space-y-4">
           {filtered.map((a, i) => (
             <motion.div key={a.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+              className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex items-center gap-4 flex-1">
                 <div className="w-12 h-12 rounded-full bg-brand-secondary/20 flex items-center justify-center font-bold text-brand-primary text-lg shrink-0 overflow-hidden">
                   {a.patientImage ? (

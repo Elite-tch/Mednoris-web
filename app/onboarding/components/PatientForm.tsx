@@ -64,9 +64,9 @@ export default function PatientForm({ onBack }: { onBack: () => void }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="w-full max-w-2xl bg-white text-primary p-8 rounded-3xl shadow-sm border border-gray-100"
+      className="w-full max-w-3xl bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100"
     >
       <button
         onClick={onBack}
@@ -88,8 +88,8 @@ export default function PatientForm({ onBack }: { onBack: () => void }) {
           <label className="block text-sm font-bold text-brand-primary mb-2">
             Profile Image
           </label>
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 shrink-0">
               {imageFile ? (
                 <img
                   src={URL.createObjectURL(imageFile)}

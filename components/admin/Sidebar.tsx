@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, ShieldCheck } from "lucide-react";
 
-const navItems = [
+export const navItems = [
   { label: "Platform Analytics", href: "/admin", icon: LayoutDashboard },
   { label: "Verification Queue", href: "/admin/verification", icon: ShieldCheck },
 ];

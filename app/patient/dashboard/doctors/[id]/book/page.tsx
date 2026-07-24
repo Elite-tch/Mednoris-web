@@ -157,10 +157,23 @@ export default function BookingPage() {
 
     setSubmitting(true);
     try {
+      // Fetch real patient name from Firestore since Privy user object doesn't have it
+      let realPatientName = "Patient";
+      try {
+        const pSnap = await getDoc(doc(db, "patients", user.id));
+        if (pSnap.exists()) {
+          realPatientName = pSnap.data().fullName || "Patient";
+        }
+      } catch (e) {
+        console.error("Failed to fetch patient profile for booking", e);
+      }
+
       const slotDisplay = `${startTime} - ${endTime}${appointmentDate ? ` on ${new Date(appointmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ` (${day})`}`;
 
       await addDoc(collection(db, "appointments"), {
         patientId: user.id,
+        patientName: realPatientName,
+        patientEmail: user.email?.address || "",
         doctorId: doctor.id,
         doctorName: doctor.fullName,
         doctorTitle: doctor.title || "",
@@ -233,7 +246,7 @@ export default function BookingPage() {
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-100">
+        <div className="px-4 md:px-6 py-4 md:py-5 border-b border-gray-100">
           <h2 className="text-xl font-extrabold text-brand-primary">Book a Consultation</h2>
           <p className="text-sm text-gray-400 mt-0.5">
             with {doctor.title ? `${doctor.title} ` : "Dr. "}{doctor.fullName}
@@ -241,7 +254,7 @@ export default function BookingPage() {
         </div>
 
         {/* Slot Summary */}
-        <div className="mx-6 mt-5 p-4 rounded-2xl bg-brand-primary/5 border border-brand-primary/15 flex flex-wrap gap-4">
+        <div className="mx-4 md:mx-6 mt-4 md:mt-5 p-4 rounded-2xl bg-brand-primary/5 border border-brand-primary/15 flex flex-col sm:flex-row sm:flex-wrap gap-4 sm:items-center">
           <div className="flex items-center gap-2 text-sm text-brand-primary font-semibold">
             <Calendar size={16} className="text-brand-secondary shrink-0" />
             <span>{day}{appointmentDate ? ` · ${new Date(appointmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}</span>
@@ -250,13 +263,13 @@ export default function BookingPage() {
             <Clock size={16} className="text-brand-secondary shrink-0" />
             <span>{startTime} – {endTime}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm font-extrabold text-brand-primary ml-auto">
+          <div className="flex items-center gap-2 text-sm font-extrabold text-brand-primary sm:ml-auto">
             ${doctor.consultationFee || "50"}<span className="text-gray-400 font-normal text-xs">/session</span>
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5 space-y-6">
+        <form onSubmit={handleSubmit} className="px-4 md:px-6 pb-6 pt-5 space-y-6">
 
 
           {/* Reason */}

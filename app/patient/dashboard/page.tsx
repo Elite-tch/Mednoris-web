@@ -42,6 +42,12 @@ export default function DashboardPage() {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const appts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sort: newest booking first
+      appts.sort((a: any, b: any) => {
+        const aTime = a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt ?? 0).getTime();
+        const bTime = b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt ?? 0).getTime();
+        return bTime - aTime;
+      });
       setAppointments(appts);
     });
     return () => unsubscribe();
@@ -118,7 +124,7 @@ export default function DashboardPage() {
                   
                   return (
                     <div key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-secondary/30 transition-colors">
-                      <div className="flex sm:flex-col items-center justify-center sm:w-20 shrink-0 sm:border-r border-gray-100 sm:pr-4">
+                      <div className="flex sm:flex-col items-center md:justify-center sm:w-20 shrink-0 sm:border-r border-gray-100 sm:pr-4">
                         <span className="text-xs text-gray-400 font-bold">{s.appointmentDate ? new Date(s.appointmentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : (s.day || 'Today')}</span>
                         <span className="text-sm font-extrabold text-brand-primary mt-0.5">{startTime?.split(" ")[0] || startTime}</span>
                       </div>

@@ -17,7 +17,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const navItems = [
+export const navItems = [
   { label: "Dashboard", href: "/doctor/dashboard", icon: LayoutDashboard },
   { label: "Appointments", href: "/doctor/dashboard/appointments", icon: CalendarDays },
   { label: "Availability", href: "/doctor/dashboard/availability", icon: Clock },
@@ -48,7 +48,7 @@ export default function DoctorSidebar() {
     <aside className="hidden md:flex flex-col w-64 min-h-screen bg-brand-primary text-white shrink-0">
       {/* Logo Area */}
       <div className="h-20 flex items-center px-6 border-b border-white/10">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/?view=landing" className="flex items-center gap-2">
           <img src="/logo.png" alt="Mednoris" className="w-22 h-22 object-contain brightness-0 invert" />
           </Link>
       </div>

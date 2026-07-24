@@ -56,6 +56,12 @@ export default function DoctorDashboardPage() {
             return { ...appt, patientName: "Patient" };
           })
         );
+        // Sort: newest booking first
+        resolvedAppts.sort((a, b) => {
+          const aTime = a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt ?? 0).getTime();
+          const bTime = b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt ?? 0).getTime();
+          return bTime - aTime;
+        });
         setAppointments(resolvedAppts);
       } catch (err) {
         console.error("Dashboard appts error", err);

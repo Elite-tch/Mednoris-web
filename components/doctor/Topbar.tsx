@@ -3,9 +3,11 @@ import { useState, useEffect, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { doc, collection, query, where, orderBy, limit, onSnapshot, updateDoc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Bell, Search, ChevronDown, LogOut } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, Menu, X } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { navItems } from "./Sidebar";
 
 export default function DoctorTopbar() {
   const { user, logout } = usePrivy();
@@ -14,7 +16,9 @@ export default function DoctorTopbar() {
   const [status, setStatus] = useState("Pending Verification");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!user) return;
@@ -69,9 +73,17 @@ export default function DoctorTopbar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-6 py-4 flex items-center gap-4">
+    <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 md:px-6 py-4 flex items-center gap-4">
+      {/* Mobile Menu Toggle */}
+      <button 
+        onClick={() => setMobileMenuOpen(true)}
+        className="md:hidden w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Search */}
-      <div className="flex-1 max-w-md relative hidden sm:block">
+      <div className="flex-1 max-w-md relative hidden md:block">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
@@ -79,6 +91,56 @@ export default function DoctorTopbar() {
           className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:border-brand-secondary"
         />
       </div>
+
+      {/* Mobile Navigation Drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 md:hidden"
+            />
+            <motion.div 
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-[280px] bg-brand-primary z-50 flex flex-col md:hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <img src="/logo.png" alt="Mednoris" className="w-8 h-8 object-contain brightness-0 invert" />
+                  <span className="text-lg font-extrabold tracking-tight text-white">MEDNORIS</span>
+                </div>
+                <button onClick={() => setMobileMenuOpen(false)} className="text-white/60 hover:text-white p-2">
+                  <X size={20} />
+                </button>
+              </div>
+              <nav className="flex-1 px-4 py-6 flex flex-col gap-1 overflow-y-auto">
+                {navItems.map(({ label, href, icon: Icon }) => {
+                  const isActive = href === "/doctor/dashboard" ? pathname === href : pathname.startsWith(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all ${
+                        isActive ? "bg-white/20 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      {label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       
       {/* Verification Status Badge */}
       <Link href="/doctor/dashboard/profile" className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors cursor-pointer ml-4 ${
@@ -116,7 +178,7 @@ export default function DoctorTopbar() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 mt-3 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden origin-top-right"
+                className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden sm:origin-top-right"
               >
                 <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                   <h3 className="font-bold text-gray-900">Notifications</h3>

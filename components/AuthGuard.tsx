@@ -19,7 +19,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkUser = async () => {
       // Allow unrestricted access to the landing page and specific public routes
       if (!authenticated) {
-        if (pathname !== "/" && !pathname.startsWith("/public")) {
+        if (pathname !== "/" && !pathname.startsWith("/public") && pathname !== "/about" && pathname !== "/contact") {
           // If trying to access a protected route while unauthenticated, redirect home
           router.replace("/");
         }
@@ -38,8 +38,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             const role = data.role ? data.role.toLowerCase() : "patient";
             const targetDashboard = `/${role}/dashboard`;
 
-            // User is onboarded. If they are on the landing page or onboarding page, redirect them to dashboard.
-            if (pathname === "/" || pathname === "/onboarding") {
+            // User is onboarded. Redirect from landing to dashboard unless they explicitly want to view the landing page.
+            const isViewingLanding = typeof window !== 'undefined' && window.location.search.includes("view=landing");
+            
+            if ((pathname === "/" && !isViewingLanding) || pathname === "/onboarding") {
               router.replace(targetDashboard); 
             }
           } else {

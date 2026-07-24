@@ -17,7 +17,7 @@ import {
   User,
 } from "lucide-react";
 
-const navItems = [
+export const navItems = [
   { label: "Dashboard", href: "/patient/dashboard", icon: LayoutDashboard },
   { label: "My Records", href: "/patient/dashboard/vault", icon: FileText },
   { label: "Upload", href: "/patient/dashboard/upload", icon: Upload },
@@ -39,11 +39,11 @@ export default function Sidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen bg-brand-primary text-white shrink-0">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-        <img src="/logo.png" alt="Mednoris" className="w-8 h-8 object-contain brightness-0 invert" />
-        <span className="text-lg font-extrabold tracking-tight">MEDNORIS</span>
+      <div className="h-20 flex items-center px-6 border-b border-white/10">
+        <Link href="/?view=landing" className="flex items-center gap-2">
+          <img src="/logo.png" alt="Mednoris" className="w-22 h-22 object-contain brightness-0 invert" />
+          </Link>
       </div>
-
       {/* Nav */}
       <nav className="flex-1 px-3 py-6 flex flex-col gap-1 overflow-y-auto sidebar-scroll">
         {navItems.map(({ label, href, icon: Icon }) => {

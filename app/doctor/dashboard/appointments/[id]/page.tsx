@@ -205,20 +205,8 @@ function JoinCallWidget({ appointment }: { appointment: any }) {
       const d = new Date();
       d.setHours(hours, minutes, 0, 0);
       let diff = targetDay - d.getDay();
-      if (diff < 0) {
-        diff += 7;
-      } else if (diff === 0) {
-        const endTime = new Date(d.getTime());
-        if (appointment.endTime) {
-          const [eH, eM] = appointment.endTime.split(":").map(Number);
-          endTime.setHours(eH, eM, 0, 0);
-        } else {
-          endTime.setHours(endTime.getHours() + 1);
-        }
-        if (endTime.getTime() < now.getTime()) {
-          diff += 7;
-        }
-      }
+      if (diff < 0) diff += 7;
+      
       d.setDate(d.getDate() + diff);
       return d;
     };
@@ -226,12 +214,30 @@ function JoinCallWidget({ appointment }: { appointment: any }) {
     const target = calculateTarget();
 
     const tick = () => {
-      const distance = target.getTime() - Date.now();
-      if (distance <= 5 * 60 * 1000) {
+      const now = Date.now();
+      const distance = target.getTime() - now;
+      
+      const endTime = new Date(target.getTime());
+      if (appointment.endTime) {
+        const [eH, eM] = appointment.endTime.split(":").map(Number);
+        endTime.setHours(eH, eM, 0, 0);
+      } else {
+        endTime.setHours(endTime.getHours() + 1);
+      }
+      const endDistance = endTime.getTime() - now;
+
+      if (endDistance <= 0) {
+        setCanJoin(false);
+        setTimeLeft("Completed");
+        return;
+      }
+
+      if (distance <= 0) {
         setCanJoin(true);
         setTimeLeft("");
         return;
       }
+      
       setCanJoin(false);
       const d = Math.floor(distance / (1000 * 60 * 60 * 24));
       const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));

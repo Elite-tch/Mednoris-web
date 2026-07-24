@@ -4,6 +4,7 @@ import AboutSection from "@/components/landing/AboutSection";
 import FeaturesAlternating from "@/components/landing/FeaturesAlternating";
 import CtaBanner from "@/components/landing/CtaBanner";
 import ServicesGrid from "@/components/landing/ServicesGrid";
+import LatestDoctors from "@/components/landing/LatestDoctors";
 import StatsBar from "@/components/landing/StatsBar";
 import Testimonials from "@/components/landing/Testimonials";
 import Newsletter from "@/components/landing/Newsletter";
@@ -17,6 +18,7 @@ export default function Home() {
      <div>
        <AboutSection />
        <ServicesGrid />
+       <LatestDoctors />
       <FeaturesAlternating />
       
       

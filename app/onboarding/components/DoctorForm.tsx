@@ -138,7 +138,7 @@ export default function DoctorForm({ onBack }: { onBack: () => void }) {
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="w-full max-w-3xl bg-white p-8 rounded-3xl shadow-sm border border-gray-100"
+      className="w-full max-w-3xl bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100"
     >
       <button
         onClick={onBack}

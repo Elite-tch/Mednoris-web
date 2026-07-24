@@ -13,8 +13,43 @@ const tabs = ["Scheduled", "Completed", "Cancelled"];
 const statusIcon = { Scheduled: CalendarClock, Completed: CheckCircle2, Cancelled: XCircle };
 const statusColor = {
   Scheduled: "text-brand-secondary bg-brand-secondary/10",
-  Completed: "text-green-600 bg-green-50",
+  Completed: "text-brand-primary bg-brand-primary/10",
   Cancelled: "text-red-500 bg-red-50",
+};
+
+const calculateDynamicStatus = (appointment: any) => {
+  if (appointment.status !== "Scheduled") return appointment.status;
+
+  const [hours, minutes] = (appointment.startTime || "00:00").split(':').map(Number);
+  let targetDate;
+
+  if (appointment.appointmentDate) {
+    targetDate = new Date(appointment.appointmentDate);
+    targetDate.setHours(hours, minutes, 0, 0);
+  } else {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const targetDay = days.indexOf(appointment.day);
+    targetDate = new Date();
+    targetDate.setHours(hours, minutes, 0, 0);
+    let currentDay = targetDate.getDay();
+    let diff = targetDay - currentDay;
+    if (diff < 0) diff += 7;
+    targetDate.setDate(targetDate.getDate() + diff);
+  }
+
+  const endTime = new Date(targetDate.getTime());
+  if (appointment.endTime) {
+    const [eH, eM] = appointment.endTime.split(":").map(Number);
+    endTime.setHours(eH, eM, 0, 0);
+  } else {
+    endTime.setHours(endTime.getHours() + 1);
+  }
+
+  if (endTime.getTime() - new Date().getTime() <= 0) {
+    return "Completed";
+  }
+
+  return "Scheduled";
 };
 
 export default function AppointmentsPage() {
@@ -34,7 +69,16 @@ export default function AppointmentsPage() {
           where("patientId", "==", user.id)
         );
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const data = snapshot.docs.map((d) => {
+          const raw = { id: d.id, ...d.data() };
+          return { ...raw, status: calculateDynamicStatus(raw) };
+        });
+        // Sort: newest booking first
+        data.sort((a: any, b: any) => {
+          const aTime = a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt ?? 0).getTime();
+          const bTime = b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt ?? 0).getTime();
+          return bTime - aTime;
+        });
         setAppointments(data);
       } catch (err) {
         console.error("Error fetching appointments:", err);
@@ -66,7 +110,7 @@ export default function AppointmentsPage() {
       <p className="text-gray-400 text-sm mb-8">Manage and track all your consultations.</p>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 bg-white rounded-2xl p-2 shadow-sm border border-gray-100 w-fit">
+      <div className="flex flex-wrap gap-2 mb-6 bg-white rounded-2xl p-2 shadow-sm border border-gray-100 w-full sm:w-fit">
         {tabs.map((t) => (
           <button key={t} onClick={() => setActive(t)}
             className={`px-5 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${active === t ? "bg-brand-secondary text-white" : "text-gray-400 hover:text-brand-primary"}`}>
@@ -83,26 +127,30 @@ export default function AppointmentsPage() {
         <div className="space-y-4">
           {filtered.map((a, i) => (
             <motion.div key={a.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-brand-secondary/20 flex items-center justify-center font-bold text-brand-primary text-lg shrink-0 overflow-hidden">
-                {a.doctorImage ? (
-                  <img src={a.doctorImage} alt={a.doctorName} className="w-full h-full object-cover" />
-                ) : (
-                  a.doctorName?.charAt(0) || "D"
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-brand-primary truncate">{a.doctorTitle ? `${a.doctorTitle} ` : ''}{a.doctorName}</p>
-                <p className="text-xs text-gray-400 truncate">{a.doctorSpecialty}</p>
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
-                  <span className="flex items-center gap-1"><CalendarDays size={12} />{a.day}</span>
-                  <span className="flex items-center gap-1"><Clock size={12} />{a.slot}</span>
-                  {a.consultationFee && (
-                    <span className="font-semibold text-brand-primary">${a.consultationFee}</span>
+              className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+              {/* Avatar + Info row */}
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-12 h-12 rounded-full bg-brand-secondary/20 flex items-center justify-center font-bold text-brand-primary text-lg shrink-0 overflow-hidden">
+                  {a.doctorImage ? (
+                    <img src={a.doctorImage} alt={a.doctorName} className="w-full h-full object-cover" />
+                  ) : (
+                    a.doctorName?.charAt(0) || "D"
                   )}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-brand-primary truncate">{a.doctorTitle ? `${a.doctorTitle} ` : ''}{a.doctorName}</p>
+                  <p className="text-xs text-gray-400 truncate">{a.doctorSpecialty}</p>
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
+                    <span className="flex items-center gap-1"><CalendarDays size={12} />{a.day}</span>
+                    <span className="flex items-center gap-1"><Clock size={12} />{a.slot}</span>
+                    {a.consultationFee && (
+                      <span className="font-semibold text-brand-primary">${a.consultationFee}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
+              {/* Actions */}
+              <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-2 shrink-0 border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0 mt-1 sm:mt-0 w-full sm:w-auto">
                 {active === "Scheduled" ? (
                   <AppointmentAction appointment={a} color={color} Icon={Icon} />
                 ) : (
