@@ -14,11 +14,10 @@ export default function AdminSidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 min-h-screen bg-gray-900 text-white shrink-0">
       <div className="h-20 flex items-center px-6 border-b border-white/10">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Mednoris" className="w-8 h-8 object-contain brightness-0 invert" />
-          <span className="text-xl font-extrabold tracking-tight">ADMIN</span>
-        </Link>
-      </div>
+              <Link href="/?view=landing" className="flex items-center gap-2">
+                <img src="/logo.png" alt="Mednoris" className="w-22 h-22 object-contain brightness-0 invert" />
+                </Link>
+            </div>
 
       <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1.5 flex flex-col">
         {navItems.map((item) => {
@@ -40,6 +39,18 @@ export default function AdminSidebar() {
             </Link>
           );
         })}
+      </div>
+
+      <div className="p-4 border-t border-white/10">
+        <button
+          onClick={async () => {
+            await fetch("/api/admin/logout", { method: "POST" });
+            window.location.href = "/admin/login";
+          }}
+          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm text-red-400 hover:bg-white/10 hover:text-red-300 transition-colors cursor-pointer"
+        >
+          Logout
+        </button>
       </div>
     </aside>
   );

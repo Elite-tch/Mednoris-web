@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Clock, CheckCircle2, XCircle, CalendarClock, Video, User, Loader2 } from "lucide-react";
-import { collection, query, where, onSnapshot, getDoc, doc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, getDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
@@ -136,6 +136,54 @@ export default function DoctorAppointmentsPage() {
   const Icon = statusIcon[active as keyof typeof statusIcon];
   const color = statusColor[active as keyof typeof statusColor];
 
+  const handleCancel = async (appointmentId: string) => {
+    try {
+      const targetAppt = appointments.find((a) => a.id === appointmentId);
+      await updateDoc(doc(db, "appointments", appointmentId), { status: "Cancelled" });
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, status: "Cancelled" } : a))
+      );
+
+      // Email notifications
+      if (targetAppt) {
+        // 1. Notify the doctor (confirmation)
+        const targetDoctorEmail = user?.email?.address || user?.wallet?.address;
+        if (targetDoctorEmail && targetDoctorEmail.includes("@")) {
+          fetch("/api/notify-doctor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "appointment_canceled",
+              doctorEmail: targetDoctorEmail,
+              doctorName: targetAppt.doctorName,
+              patientName: targetAppt.patientName,
+              slot: targetAppt.slot,
+            }),
+          }).catch(e => console.error(e));
+        }
+
+        // 2. Notify the patient
+        if (targetAppt.patientEmail) {
+          fetch("/api/notify-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "appointment_canceled",
+              email: targetAppt.patientEmail,
+              name: targetAppt.patientName,
+              doctorName: targetAppt.doctorName,
+              slot: targetAppt.slot,
+            }),
+          }).catch(e => console.error(e));
+        }
+      }
+      setToast({ message: "Appointment cancelled.", type: "success" });
+    } catch (err) {
+      console.error("Error cancelling appointment:", err);
+      setToast({ message: "Failed to cancel appointment.", type: "error" });
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-extrabold text-brand-primary mb-1">Appointments</h1>
@@ -185,7 +233,7 @@ export default function DoctorAppointmentsPage() {
                 
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   {active === "Scheduled" ? (
-                    <AppointmentAction appointment={a} />
+                    <AppointmentAction appointment={a} onCancel={() => handleCancel(a.id)} />
                   ) : (
                     <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${color}`}>
                       <Icon size={13} />{active}
@@ -219,7 +267,7 @@ export default function DoctorAppointmentsPage() {
 
 // --- Sub-components ---
 
-function AppointmentAction({ appointment }: { appointment: any }) {
+function AppointmentAction({ appointment, onCancel }: { appointment: any, onCancel: () => void }) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [canJoin, setCanJoin] = useState(false);
 
@@ -295,20 +343,26 @@ function AppointmentAction({ appointment }: { appointment: any }) {
 
   if (canJoin) {
     return (
-      <Link href={`/doctor/dashboard/consultation/${appointment.id}`} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl bg-brand-primary text-white hover:bg-brand-secondary transition-colors shadow-lg animate-pulse cursor-pointer">
-        <Video size={13} /> Join Call
-      </Link>
+      <div className="flex flex-col gap-2 items-end">
+        <Link href={`/doctor/dashboard/consultation/${appointment.id}`} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl bg-brand-primary text-white hover:bg-brand-secondary transition-colors shadow-lg animate-pulse cursor-pointer">
+          <Video size={13} /> Join Call
+        </Link>
+        <button onClick={onCancel} className="text-xs text-red-500 font-semibold hover:underline">Cancel</button>
+      </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-bold text-brand-secondary bg-brand-secondary/10 px-2 py-1.5 rounded-full min-w-[70px] text-center">
-        {timeLeft}
-      </span>
-      <button disabled className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-gray-200 text-gray-400 cursor-not-allowed" title="Available once booked time starts">
-        Join Call
-      </button>
+    <div className="flex flex-col gap-2 items-end">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-brand-secondary bg-brand-secondary/10 px-2 py-1.5 rounded-full min-w-[70px] text-center">
+          {timeLeft}
+        </span>
+        <button disabled className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-gray-200 text-gray-400 cursor-not-allowed" title="Available once booked time starts">
+          Join Call
+        </button>
+      </div>
+      <button onClick={onCancel} className="text-xs text-red-500 font-semibold hover:underline mt-1">Cancel</button>
     </div>
   );
 }

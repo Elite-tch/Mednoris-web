@@ -19,7 +19,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkUser = async () => {
       // Allow unrestricted access to the landing page and specific public routes
       if (!authenticated) {
-        if (pathname !== "/" && !pathname.startsWith("/public") && pathname !== "/about" && pathname !== "/contact") {
+        if (pathname !== "/" && !pathname.startsWith("/public") && pathname !== "/about" && pathname !== "/contact" && !pathname.startsWith("/admin")) {
           // If trying to access a protected route while unauthenticated, redirect home
           router.replace("/");
         }

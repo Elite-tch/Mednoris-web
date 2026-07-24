@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Loader2, ArrowLeft, CheckCircle, XCircle, FileText, Video, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import Toast, { ToastType } from "@/components/ui/Toast";
 
 export default function DoctorDetailViewPage() {
   const params = useParams();
@@ -13,6 +14,7 @@ export default function DoctorDetailViewPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<"Verified" | "Rejected" | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     const fetchDoctor = async () => {
@@ -52,11 +54,27 @@ export default function DoctorDetailViewPage() {
         createdAt: new Date().toISOString(),
       });
 
-      alert(`Doctor has been ${newStatus.toLowerCase()}.`);
-      router.push("/admin/verification");
+      setToast({ message: `Doctor has been ${newStatus.toLowerCase()} successfully.`, type: newStatus === "Verified" ? "success" : "error" });
+
+      // Email the doctor about their verification result
+      try {
+        await fetch("/api/notify-doctor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: newStatus === "Verified" ? "verified" : "rejected",
+            doctorEmail: doctor.email,
+            doctorName: doctor.fullName,
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to email doctor:", e);
+      }
+
+      setTimeout(() => router.push("/admin/verification"), 1500);
     } catch (e) {
       console.error(e);
-      alert("Failed to update status.");
+      setToast({ message: "Failed to update status. Please try again.", type: "error" });
     } finally {
       setUpdating(null);
     }
@@ -116,7 +134,7 @@ export default function DoctorDetailViewPage() {
               {updating === "Rejected" ? <Loader2 size={18} className="animate-spin" /> : <XCircle size={18} />} Reject
             </button>
             <button onClick={() => updateStatus("Verified")} disabled={updating !== null}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 cursor-pointer">
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-secondary transition-colors disabled:opacity-50 cursor-pointer">
               {updating === "Verified" ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} Approve
             </button>
           </div>
@@ -274,6 +292,7 @@ export default function DoctorDetailViewPage() {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

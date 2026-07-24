@@ -80,7 +80,7 @@ export default function DoctorForm({ onBack }: { onBack: () => void }) {
         status: "Pending Verification",
         slug: slug,
         privyId: user.id,
-        email: user.email?.address || user.wallet?.address || "",
+        email: formData.emailAddress || user.email?.address || "",
         wallet: user.wallet?.address || "",
         createdAt: new Date().toISOString(),
       };
@@ -93,6 +93,22 @@ export default function DoctorForm({ onBack }: { onBack: () => void }) {
         role: "doctor",
         createdAt: new Date().toISOString(),
       });
+
+      // Notify admin via email
+      try {
+        await fetch("/api/notify-admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+             doctorName: formData.fullName,
+             doctorId: user.id,
+             email: formData.emailAddress || user.email?.address || "No Email Provided",
+             specialty: formData.specializations
+          })
+        });
+      } catch (e) {
+        console.error("Failed to notify admin:", e);
+      }
 
       // Redirect to dashboard (or whatever route is next)
       router.replace("/dashboard");

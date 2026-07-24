@@ -157,12 +157,14 @@ export default function BookingPage() {
 
     setSubmitting(true);
     try {
-      // Fetch real patient name from Firestore since Privy user object doesn't have it
+      // Fetch real patient name and email from Firestore since Privy user object might lack them
       let realPatientName = "Patient";
+      let realPatientEmail = user.email?.address || "";
       try {
         const pSnap = await getDoc(doc(db, "patients", user.id));
         if (pSnap.exists()) {
           realPatientName = pSnap.data().fullName || "Patient";
+          realPatientEmail = pSnap.data().email || realPatientEmail;
         }
       } catch (e) {
         console.error("Failed to fetch patient profile for booking", e);
@@ -173,7 +175,7 @@ export default function BookingPage() {
       await addDoc(collection(db, "appointments"), {
         patientId: user.id,
         patientName: realPatientName,
-        patientEmail: user.email?.address || "",
+        patientEmail: realPatientEmail,
         doctorId: doctor.id,
         doctorName: doctor.fullName,
         doctorTitle: doctor.title || "",
@@ -212,6 +214,24 @@ export default function BookingPage() {
         createdAt: new Date().toISOString(),
       });
 
+      // Email patient about the booking
+      try {
+        await fetch("/api/notify-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "appointment_confirmed",
+            email: realPatientEmail,
+            name: realPatientName,
+            doctorName: doctor.fullName,
+            consultationType: form.consultationType,
+            slot: slotDisplay,
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to email patient about appointment:", e);
+      }
+
       // Notify doctor: new appointment
       await addDoc(collection(db, "notifications"), {
         userId: doctor.id,
@@ -222,6 +242,26 @@ export default function BookingPage() {
         link: "/doctor/dashboard/appointments",
         createdAt: new Date().toISOString(),
       });
+
+      // Email the doctor about the new booking
+      try {
+        const targetDoctorEmail = doctor.emailAddress || doctor.email;
+        await fetch("/api/notify-doctor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "new_appointment",
+            doctorEmail: targetDoctorEmail,
+            doctorName: doctor.fullName,
+            patientName: realPatientName,
+            consultationType: form.consultationType,
+            slot: slotDisplay,
+            reason: form.reason,
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to email doctor about appointment:", e);
+      }
 
       setToast({ message: "Appointment booked successfully!", type: "success" });
       setTimeout(() => router.push("/patient/dashboard/appointments"), 1500);

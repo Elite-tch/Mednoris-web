@@ -5,7 +5,7 @@ import { Send, Check, CheckCheck, ArrowLeft, MessageCircle, FileText } from "luc
 import { usePrivy } from "@privy-io/react-auth";
 import { db } from "@/lib/firebase";
 import {
-  collection, query, where, onSnapshot, doc,
+  collection, query, where, onSnapshot, doc, getDoc,
   addDoc, orderBy, serverTimestamp, updateDoc, writeBatch
 } from "firebase/firestore";
 
@@ -98,6 +98,33 @@ export default function DoctorChatPage() {
           message: `Dr. ${activeChat.doctorName || "Your doctor"} sent you a message: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`,
           type: "message", read: false, link: "/patient/dashboard/chat", createdAt: new Date().toISOString(),
         });
+
+        // Email the patient about the new message
+        try {
+          const docSnap = await getDoc(doc(db, "users", activeChat.patientId));
+          // Some users might have email on users collection, others on patients
+          let email = docSnap.exists() ? docSnap.data().email : null;
+          
+          if (!email) {
+            const pSnap = await getDoc(doc(db, "patients", activeChat.patientId));
+            if (pSnap.exists()) email = pSnap.data().email;
+          }
+
+          if (email) {
+            fetch("/api/notify-user", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "chat_activity",
+                email: email,
+                name: activeChat.patientName || "Patient",
+                dashboardPath: "/patient/dashboard/chat",
+              }),
+            }).catch(e => console.error("Async email error:", e));
+          }
+        } catch (e) {
+          console.error("Failed to fetch patient email for chat notification:", e);
+        }
       }
     } catch (err) { console.error("Failed to send message:", err); }
   };
@@ -110,7 +137,7 @@ export default function DoctorChatPage() {
   };
 
   // ── CONVERSATION LIST ──────────────────────────────────────────────────
-  const ConversationList = () => (
+  const conversationListContent = (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-gray-100">
         <input type="text" placeholder="Search patients..."
@@ -144,7 +171,7 @@ export default function DoctorChatPage() {
   );
 
   // ── CHAT WINDOW ───────────────────────────────────────────────────────
-  const ChatWindow = () => (
+  const chatWindowContent = (
     <div className="flex flex-col h-full bg-[#faf9fc]">
       {activeChat ? (
         <>
@@ -221,11 +248,11 @@ export default function DoctorChatPage() {
           <AnimatePresence mode="wait">
             {mobileView === "list" ? (
               <motion.div key="list" initial={{ x: 0 }} animate={{ x: 0 }} exit={{ x: "-100%" }} className="h-full">
-                <ConversationList />
+                {conversationListContent}
               </motion.div>
             ) : (
               <motion.div key="chat" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 220 }} className="h-full">
-                <ChatWindow />
+                {chatWindowContent}
               </motion.div>
             )}
           </AnimatePresence>
@@ -233,11 +260,11 @@ export default function DoctorChatPage() {
 
         {/* DESKTOP: side-by-side */}
         <div className="hidden md:flex h-full">
-          <div className="w-72 border-r border-gray-100 shrink-0 h-full overflow-hidden">
-            <ConversationList />
+          <div className="w-80 border-r border-gray-100 shrink-0 h-full overflow-hidden bg-white">
+            {conversationListContent}
           </div>
           <div className="flex-1 h-full overflow-hidden">
-            <ChatWindow />
+            {chatWindowContent}
           </div>
         </div>
       </div>

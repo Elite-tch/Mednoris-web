@@ -95,10 +95,50 @@ export default function AppointmentsPage() {
 
   const handleCancel = async (appointmentId: string) => {
     try {
+      const targetAppt = appointments.find((a) => a.id === appointmentId);
       await updateDoc(doc(db, "appointments", appointmentId), { status: "Cancelled" });
       setAppointments((prev) =>
         prev.map((a) => (a.id === appointmentId ? { ...a, status: "Cancelled" } : a))
       );
+
+      // Email notifications
+      if (targetAppt) {
+        // 1. Notify the patient (confirmation)
+        if (targetAppt.patientEmail) {
+          fetch("/api/notify-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "appointment_canceled",
+              email: targetAppt.patientEmail,
+              name: targetAppt.patientName,
+              doctorName: targetAppt.doctorName,
+              slot: targetAppt.slot,
+            }),
+          }).catch(e => console.error(e));
+        }
+
+        // 2. Notify the doctor
+        import("firebase/firestore").then(async ({ getDoc, doc }) => {
+          const docSnap = await getDoc(doc(db, "doctors", targetAppt.doctorId));
+          if (docSnap.exists()) {
+            const targetDoctorEmail = docSnap.data().emailAddress || docSnap.data().email;
+            if (targetDoctorEmail) {
+              fetch("/api/notify-doctor", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "appointment_canceled",
+                  doctorEmail: targetDoctorEmail,
+                  doctorName: targetAppt.doctorName,
+                  patientName: targetAppt.patientName,
+                  slot: targetAppt.slot,
+                }),
+              }).catch(e => console.error(e));
+            }
+          }
+        });
+      }
     } catch (err) {
       console.error("Error cancelling appointment:", err);
     }

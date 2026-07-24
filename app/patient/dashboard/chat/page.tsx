@@ -157,6 +157,28 @@ function ChatContent() {
           message: `${activeChat.patientName || "A patient"} sent you a message: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`,
           type: "message", read: false, link: "/doctor/dashboard/chat", createdAt: new Date().toISOString(),
         });
+
+        // Email the doctor about the new message
+        try {
+          const docSnap = await getDoc(doc(db, "doctors", activeChat.doctorId));
+          if (docSnap.exists()) {
+            const targetDoctorEmail = docSnap.data().emailAddress || docSnap.data().email;
+            if (targetDoctorEmail) {
+              fetch("/api/notify-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "chat_activity",
+                  email: targetDoctorEmail,
+                  name: docSnap.data().fullName || "Doctor",
+                  dashboardPath: "/doctor/dashboard/chat",
+                }),
+              }).catch(e => console.error("Async email error:", e));
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch doctor email for chat notification:", e);
+        }
       }
     } catch (err) { setToast({ message: "Failed to send message", type: "error" }); }
   };
@@ -169,7 +191,7 @@ function ChatContent() {
   };
 
   // ── CONVERSATION LIST ──────────────────────────────────────────────────
-  const ConversationList = () => (
+  const conversationListContent = (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-gray-100">
         <p className="font-bold text-brand-primary text-sm">Messages</p>
@@ -203,7 +225,7 @@ function ChatContent() {
   );
 
   // ── CHAT WINDOW ───────────────────────────────────────────────────────
-  const ChatWindow = () => (
+  const chatWindowContent = (
     <div className="flex flex-col h-full">
       {activeChat ? (
         <>
@@ -282,11 +304,11 @@ function ChatContent() {
           <AnimatePresence mode="wait">
             {mobileView === "list" ? (
               <motion.div key="list" initial={{ x: 0 }} animate={{ x: 0 }} exit={{ x: "-100%" }} className="h-full">
-                <ConversationList />
+                {conversationListContent}
               </motion.div>
             ) : (
               <motion.div key="chat" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 220 }} className="h-full">
-                <ChatWindow />
+                {chatWindowContent}
               </motion.div>
             )}
           </AnimatePresence>
@@ -296,11 +318,11 @@ function ChatContent() {
         <div className="hidden md:flex h-full">
           {/* Left: List */}
           <div className="w-72 border-r border-gray-100 shrink-0 h-full overflow-hidden">
-            <ConversationList />
+            {conversationListContent}
           </div>
           {/* Right: Chat */}
           <div className="flex-1 h-full overflow-hidden">
-            <ChatWindow />
+            {chatWindowContent}
           </div>
         </div>
       </div>

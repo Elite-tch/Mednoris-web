@@ -21,12 +21,14 @@ export default function PatientDoctorProfilePage() {
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchDoctor = async () => {
       if (!params.id) return;
       try {
         const decodedId = decodeURIComponent(params.id as string);
+        let docId = "";
         
         // Try searching by fullName first
         let q = query(collection(db, "doctors"), where("fullName", "==", decodedId));
@@ -40,12 +42,37 @@ export default function PatientDoctorProfilePage() {
         
         if (!querySnapshot.empty) {
           const docSnap = querySnapshot.docs[0];
+          docId = docSnap.id;
           setDoctor({ id: docSnap.id, ...docSnap.data() });
         } else {
           const snap = await getDoc(doc(db, "doctors", decodedId));
           if (snap.exists()) {
+            docId = snap.id;
             setDoctor({ id: snap.id, ...snap.data() });
           }
+        }
+
+        if (docId) {
+          // Fetch existing scheduled appointments to prevent double booking
+          const apptQuery = query(
+            collection(db, "appointments"),
+            where("doctorId", "==", docId),
+            where("status", "==", "Scheduled")
+          );
+          const apptSnap = await getDocs(apptQuery);
+          const booked = new Set<string>();
+          apptSnap.forEach((aDoc) => {
+            const a = aDoc.data();
+            if (a.appointmentDate) {
+              // format: YYYY-MM-DD-09:00-10:00 (since appointmentDate is stored as string/timestamp, let's parse it)
+              const d = new Date(a.appointmentDate);
+              const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+              booked.add(`${a.day}|${dateStr}-${a.startTime}-${a.endTime}`);
+            } else {
+              booked.add(`${a.day}-${a.startTime}-${a.endTime}`);
+            }
+          });
+          setBookedSlots(booked);
         }
       } catch (e) {
         console.error(e);
@@ -269,33 +296,37 @@ export default function PatientDoctorProfilePage() {
                               return slotDates.map((date) => {
                                 const slotId = `${day}|${date}-${slot.start}-${slot.end}`;
                                 const isSelected = selectedSlot === slotId;
+                                const isBooked = bookedSlots.has(slotId) || bookedSlots.has(`${day}-${slot.start}-${slot.end}`);
                                 const formatted = new Date(date).toLocaleDateString("en-GB", {
                                   weekday: "short", day: "numeric", month: "short",
                                 });
                                 return (
                                   <label
                                     key={slotId}
-                                    className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
-                                      isSelected
-                                        ? "border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary"
-                                        : "border-gray-200 hover:border-brand-primary/40 bg-gray-50"
+                                    className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all border ${
+                                      isBooked
+                                        ? "border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed"
+                                        : isSelected
+                                        ? "border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary cursor-pointer"
+                                        : "border-gray-200 hover:border-brand-primary/40 bg-gray-50 cursor-pointer"
                                     }`}
                                   >
                                     <div className="flex flex-col min-w-0">
-                                      <span className={`text-xs font-semibold flex items-center gap-1 ${isSelected ? "text-brand-primary" : "text-gray-500"}`}>
+                                      <span className={`text-xs font-semibold flex items-center gap-1 ${isSelected && !isBooked ? "text-brand-primary" : "text-gray-500"}`}>
                                         <CalendarDays size={11} className="shrink-0" /> {formatted}
                                       </span>
-                                      <span className={`text-sm font-bold ${isSelected ? "text-brand-primary" : "text-gray-700"}`}>
-                                        {slot.start} – {slot.end}
+                                      <span className={`text-sm font-bold ${isSelected && !isBooked ? "text-brand-primary" : "text-gray-700"}`}>
+                                        {slot.start} – {slot.end} {isBooked && "(Booked)"}
                                       </span>
                                     </div>
                                     <input
                                       type="radio"
                                       name="availability-slot"
-                                      className="w-4 h-4 shrink-0 cursor-pointer"
-                                      style={{ accentColor: "#34254e" }}
+                                      className="w-4 h-4 shrink-0"
+                                      style={!isBooked ? { accentColor: "#34254e", cursor: "pointer" } : { cursor: "not-allowed" }}
                                       checked={isSelected}
-                                      onChange={() => setSelectedSlot(slotId)}
+                                      disabled={isBooked}
+                                      onChange={() => !isBooked && setSelectedSlot(slotId)}
                                     />
                                   </label>
                                 );
@@ -305,25 +336,30 @@ export default function PatientDoctorProfilePage() {
                             // Recurring (no specific dates)
                             const slotId = `${day}-${slot.start}-${slot.end}`;
                             const isSelected = selectedSlot === slotId;
+                            // Check if a recurring slot is booked. Note: this hides the slot entirely if ANY appointment is booked for this recurring time without a date.
+                            const isBooked = bookedSlots.has(slotId);
                             return (
                               <label
                                 key={i}
-                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
-                                  isSelected
-                                    ? "border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary"
-                                    : "border-gray-200 hover:border-brand-primary/40 bg-gray-50"
+                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all border ${
+                                  isBooked
+                                    ? "border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed"
+                                    : isSelected
+                                    ? "border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary cursor-pointer"
+                                    : "border-gray-200 hover:border-brand-primary/40 bg-gray-50 cursor-pointer"
                                 }`}
                               >
-                                <span className={`font-bold text-sm ${isSelected ? "text-brand-primary" : "text-gray-700"}`}>
-                                  {slot.start} – {slot.end}
+                                <span className={`font-bold text-sm ${isSelected && !isBooked ? "text-brand-primary" : "text-gray-700"}`}>
+                                  {slot.start} – {slot.end} {isBooked && "(Booked)"}
                                 </span>
                                 <input
                                   type="radio"
                                   name="availability-slot"
-                                  className="w-4 h-4 shrink-0 cursor-pointer"
-                                  style={{ accentColor: "#34254e" }}
+                                  className="w-4 h-4 shrink-0"
+                                  style={!isBooked ? { accentColor: "#34254e", cursor: "pointer" } : { cursor: "not-allowed" }}
                                   checked={isSelected}
-                                  onChange={() => setSelectedSlot(slotId)}
+                                  disabled={isBooked}
+                                  onChange={() => !isBooked && setSelectedSlot(slotId)}
                                 />
                               </label>
                             );
