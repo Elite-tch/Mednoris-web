@@ -161,10 +161,23 @@ export default function BookingPage() {
       let realPatientName = "Patient";
       let realPatientEmail = user.email?.address || "";
       try {
+        // 1. Try patients collection
         const pSnap = await getDoc(doc(db, "patients", user.id));
         if (pSnap.exists()) {
           realPatientName = pSnap.data().fullName || "Patient";
           realPatientEmail = pSnap.data().email || realPatientEmail;
+        } else {
+          // 2. Try users collection
+          const uSnap = await getDoc(doc(db, "users", user.id));
+          if (uSnap.exists()) {
+            realPatientName = uSnap.data().name || "Patient";
+          } else {
+            // 3. Try doctors collection (if doctor testing booking)
+            const dSnap = await getDoc(doc(db, "doctors", user.id));
+            if (dSnap.exists()) {
+              realPatientName = dSnap.data().fullName || "Patient";
+            }
+          }
         }
       } catch (e) {
         console.error("Failed to fetch patient profile for booking", e);

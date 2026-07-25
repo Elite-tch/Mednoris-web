@@ -91,25 +91,42 @@ export default function DoctorAppointmentsPage() {
               return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
             }
             try {
+              let name = "Patient";
+              let image = null;
+
+              // 1. Try patients collection
               const pSnap = await getDoc(doc(db, "patients", appt.patientId));
               if (pSnap.exists()) {
                 const pData = pSnap.data();
-                const details = {
-                  name: pData.fullName || "Patient",
-                  image: pData.profileImage || null,
-                };
-                patientCache[appt.patientId] = details;
-                const finalAppt = {
-                  ...appt,
-                  patientName: details.name,
-                  patientImage: details.image,
-                };
-                return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
+                name = pData.fullName || name;
+                image = pData.profileImage || null;
+              } else {
+                // 2. Fallback to unified users collection
+                const uSnap = await getDoc(doc(db, "users", appt.patientId));
+                if (uSnap.exists()) {
+                  name = uSnap.data().name || name;
+                } else {
+                  // 3. Fallback to doctors collection (in case a doctor is testing the booking)
+                  const dSnap = await getDoc(doc(db, "doctors", appt.patientId));
+                  if (dSnap.exists()) {
+                    name = dSnap.data().fullName || name;
+                    image = dSnap.data().profileImage || null;
+                  }
+                }
               }
+
+              const details = { name, image };
+              patientCache[appt.patientId] = details;
+              const finalAppt = {
+                ...appt,
+                patientName: details.name,
+                patientImage: details.image,
+              };
+              return { ...finalAppt, status: calculateDynamicStatus(finalAppt) };
             } catch (e) {
               // Ignore fetch error
             }
-            const fallbackAppt = { ...appt, patientName: "Patient", patientImage: null };
+            const fallbackAppt = { ...appt, patientName: appt.patientName || "Patient", patientImage: null };
             return { ...fallbackAppt, status: calculateDynamicStatus(fallbackAppt) };
           })
         );
