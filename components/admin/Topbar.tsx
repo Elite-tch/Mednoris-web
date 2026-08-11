@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { LogOut, Search, Menu, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LogOut, Search, Menu, X, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,8 +11,16 @@ import { navItems } from "./Sidebar";
 
 export default function AdminTopbar() {
   const { logout } = usePrivy();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const pathname = usePathname();
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    router.refresh();
+    setTimeout(() => setRefreshing(false), 800);
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 md:px-6 py-4 flex items-center justify-between gap-4">
@@ -88,6 +97,13 @@ export default function AdminTopbar() {
           <p className="text-xs text-gray-400">Platform Control</p>
         </div>
         
+        <button
+          onClick={handleRefresh}
+          title="Refresh page data"
+          className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-brand-primary/10 hover:text-brand-primary transition-colors cursor-pointer"
+        >
+          <RotateCw size={16} className={refreshing ? "animate-spin" : ""} />
+        </button>
         <button
           onClick={logout}
           title="Logout"

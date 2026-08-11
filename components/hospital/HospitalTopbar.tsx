@@ -2,16 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { LogOut, Building2 } from "lucide-react";
+import { LogOut, Building2, RotateCw } from "lucide-react";
 
 export default function HospitalTopbar() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const [hospital, setHospital] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    router.refresh();
+    setTimeout(() => setRefreshing(false), 800);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -53,6 +62,13 @@ export default function HospitalTopbar() {
         <div className="w-9 h-9 bg-brand-primary/10 text-brand-primary font-bold rounded-full flex items-center justify-center text-sm">
           {staffProfile?.name?.charAt(0) || "?"}
         </div>
+        <button
+          onClick={handleRefresh}
+          title="Refresh page data"
+          className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-brand-primary/10 hover:text-brand-primary transition-colors"
+        >
+          <RotateCw size={16} className={refreshing ? "animate-spin" : ""} />
+        </button>
         <button
           onClick={handleLogout}
           title="Logout"

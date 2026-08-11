@@ -261,9 +261,7 @@ export default function OnboardingModal({ hospital, slug, onSuccess }: { hospita
               // STEP 2: Recovery Code
               <>
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Key size={32} />
-                  </div>
+                  
                   <h1 className="text-2xl font-black text-gray-900 mb-2">Save Your Recovery Code</h1>
                   <p className="text-gray-600 text-sm">
                     Mednoris uses advanced zero-knowledge encryption. We cannot reset your password for you. If you lose your password, this code is the <strong>only way</strong> to recover your hospital's patient data.
@@ -271,8 +269,7 @@ export default function OnboardingModal({ hospital, slug, onSuccess }: { hospita
                 </div>
 
                 <div className="bg-primary  rounded-2xl p-6 text-center mb-6 relative">
-                  <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Master Recovery Code</p>
-                  <code className="text-md font-black text-white tracking-widest break-all">
+                    <code className="text-md font-black text-white tracking-widest break-all">
                     {recoveryCode}
                   </code>
                   <div className="flex justify-center gap-3 mt-4">

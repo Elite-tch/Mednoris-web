@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { motion } from "framer-motion";
-import { Plus, Loader2, ArrowLeft, Camera, ShieldCheck } from "lucide-react";
-import WebcamCapture from "@/components/hospital/WebcamCapture";
+import { Plus, Loader2, ArrowLeft, Camera, ShieldCheck, Download, Printer } from "lucide-react";
 import Link from "next/link";
+import { canRegisterPatient } from "@/lib/rbac";
+import { ShieldAlert } from "lucide-react";
+import WebcamCapture from "@/components/hospital/WebcamCapture";
 
 function generateMednorisId(slug: string) {
   const prefix = slug.substring(0, 3).toUpperCase();
@@ -16,8 +18,32 @@ function generateMednorisId(slug: string) {
   return `MED-${prefix}-${rand}`;
 }
 
-export default function AddPatientPage() {
+function QRCodeCanvas({ value }: { value: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    async function renderQR() {
+      if (!canvasRef.current || !value) return;
+      try {
+        const QRCode = (await import("qrcode")).default;
+        await QRCode.toCanvas(canvasRef.current, value, {
+          width: 200,
+          margin: 2,
+          color: { dark: "#1e1b4b", light: "#ffffff" },
+        });
+      } catch (err) {
+        console.error("QR render error", err);
+      }
+    }
+    renderQR();
+  }, [value]);
+
+  return <canvas ref={canvasRef} className="rounded-2xl shadow-md" />;
+}
+
+export default function StaffAddPatientPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const [hospital, setHospital] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
@@ -29,6 +55,7 @@ export default function AddPatientPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [newPatientId, setNewPatientId] = useState<string | null>(null);
+  const [newMednorisId, setNewMednorisId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -55,7 +82,13 @@ export default function AddPatientPage() {
         mednorisId,
         hospitalSlug: slug,
         hospitalName: hospital?.name,
-        tabs: { receptionist: [], summary: [], lab: [] },
+        tabs: {
+          basic_info: [],
+          summary: [],
+          consultation: [],
+          lab: [],
+          pharmacy: [],
+        },
         createdBy: staffProfile?.name || "Staff",
         createdByRole: staffProfile?.role || "staff",
         createdAt: serverTimestamp(),
@@ -66,11 +99,12 @@ export default function AddPatientPage() {
         hospitalSlug: slug,
         actorName: staffProfile?.name || "Staff",
         actorRole: staffProfile?.role || "staff",
-        action: `Added new patient: ${form.firstName} ${form.lastName} (${mednorisId})`,
+        action: `Registered new patient: ${form.firstName} ${form.lastName} (${mednorisId})`,
         timestamp: serverTimestamp(),
       });
 
       setNewPatientId(docRef.id);
+      setNewMednorisId(mednorisId);
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || "Failed to add patient.");
@@ -78,6 +112,19 @@ export default function AddPatientPage() {
       setLoading(false);
     }
   };
+
+  if (staffProfile && !canRegisterPatient(staffProfile.role)) {
+    return (
+      <div className="max-w-3xl mx-auto py-20 text-center">
+        <ShieldAlert size={48} className="mx-auto text-red-500 mb-4 opacity-50" />
+        <h2 className="text-2xl font-black text-gray-900 mb-2">Access Denied</h2>
+        <p className="text-gray-500 mb-6">Your role ({staffProfile.role.replace(/_/g, " ")}) does not have permission to register new patients.</p>
+        <Link href={`/h/${slug}/admin/patients`} className="inline-block px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
+          Return to Directory
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -100,30 +147,55 @@ export default function AddPatientPage() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8"
       >
-        {success ? (
-          <div className="text-center py-8 space-y-4">
-            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto">
+        {success && newMednorisId ? (
+          <div className="text-center py-4 space-y-6">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
               <ShieldCheck size={32} />
             </div>
-            <h2 className="text-xl font-black text-gray-900">Patient Registered!</h2>
-            <p className="text-gray-500">The patient's Mednoris ID has been generated successfully.</p>
-            <div className="flex justify-center gap-3 pt-4">
-              <button 
-                onClick={() => { 
-                  setSuccess(false); 
-                  setForm({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "" }); 
+            <div>
+              <h2 className="text-xl font-black text-gray-900">Patient Registered!</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {form.firstName} {form.lastName}'s Mednoris ID has been created. Print or save the QR card below.
+              </p>
+            </div>
+
+            {/* QR Code Card */}
+            <div className="inline-block bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4" id="patient-qr-card">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mednoris ID Card</p>
+              <div className="flex justify-center">
+                <QRCodeCanvas value={newMednorisId} />
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-black text-gray-900">{form.firstName} {form.lastName}</p>
+                <code className="text-brand-primary font-bold text-sm">{newMednorisId}</code>
+                <p className="text-xs text-gray-400 mt-1">{hospital?.name}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 text-sm transition-colors"
+              >
+                <Printer size={16} /> Print Card
+              </button>
+              <button
+                onClick={() => {
+                  setSuccess(false);
+                  setForm({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "" });
                   setHeadshotBase64(null);
-                  setNewPatientId(null); 
+                  setNewPatientId(null);
+                  setNewMednorisId(null);
                 }}
-                className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 text-sm transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 text-sm transition-colors"
               >
                 Register Another
               </button>
-              <Link 
+              <Link
                 href={`/h/${slug}/admin/patients/${newPatientId}`}
-                className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary text-sm transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary text-sm transition-colors"
               >
-                View Patient Profile
+                Open Patient Record
               </Link>
             </div>
           </div>
@@ -211,3 +283,4 @@ export default function AddPatientPage() {
     </div>
   );
 }
+

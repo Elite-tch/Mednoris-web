@@ -14,8 +14,7 @@ export default function HospitalSidebar() {
   const navItems = [
     { label: "Overview", href: base, icon: LayoutDashboard, exact: true },
     { label: "Patients", href: `${base}/patients`, icon: Users, exact: false },
-    { label: "Staff Accounts", href: `${base}/staff`, icon: Activity, exact: false },
-    { label: "Add Staff", href: `${base}/staff/add`, icon: UserPlus, exact: false },
+    { label: "Staff Management", href: `${base}/staff`, icon: UserPlus, exact: false },
     { label: "Audit Logs", href: `${base}/logs`, icon: History, exact: false },
     { label: "Settings", href: `${base}/settings`, icon: Settings, exact: false },
   ];

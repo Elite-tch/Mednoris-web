@@ -21,6 +21,7 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
   const [fields, setFields] = useState<any[]>([]);
   const [corrections, setCorrections] = useState<any[]>([]);
   const [decryptionError, setDecryptionError] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(true);
   
   useEffect(() => {
     async function decryptEntry() {
@@ -29,16 +30,23 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
         if (entry.encryptedFields) {
           const decryptedFields = await decryptData(entry.encryptedFields.ciphertext, entry.encryptedFields.iv, dek);
           setFields(decryptedFields);
+        } else if (entry.fields) {
+          setFields(entry.fields); // Legacy unencrypted fallback
         }
+
         if (entry.encryptedCorrections) {
           const decryptedCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
           setCorrections(decryptedCorrections);
+        } else if (entry.corrections) {
+          setCorrections(entry.corrections); // Legacy unencrypted fallback
         } else {
           setCorrections([]);
         }
       } catch (err) {
         console.error("Decryption error", err);
         setDecryptionError(true);
+      } finally {
+        setIsDecrypting(false);
       }
     }
     decryptEntry();
@@ -58,8 +66,10 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
         <div className="flex-1">
           {decryptionError ? (
             <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14}/> Decryption Failed. Check Key.</div>
-          ) : fields.length === 0 ? (
+          ) : isDecrypting ? (
             <div className="text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Decrypting Secure Data...</div>
+          ) : fields.length === 0 ? (
+            <div className="text-gray-400 text-sm italic">No data entries.</div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {fields.map((f: any, i: number) => (
@@ -115,6 +125,51 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Summary Tab to display aggregated information across allowed departments
+function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: any; visibleTabs: string[]; staffProfile: any; dek: CryptoKey | null }) {
+  const tabsToAggregate = visibleTabs.filter(t => t !== "basic_info" && t !== "summary" && t !== "audit_log");
+  
+  const allEntries: { tabKey: string; entry: any }[] = [];
+  tabsToAggregate.forEach(tabKey => {
+    const entries = patient.tabs?.[tabKey] || [];
+    entries.forEach((entry: any) => {
+      allEntries.push({ tabKey, entry });
+    });
+  });
+
+  // Sort entries from newest to oldest based on entryTimestamp
+  allEntries.sort((a, b) => (b.entry.entryTimestamp || 0) - (a.entry.entryTimestamp || 0));
+
+  if (allEntries.length === 0) {
+    return (
+      <div className="text-center py-10 text-gray-300">
+        <CheckSquare size={36} className="mx-auto mb-2" />
+        <p className="text-sm">No clinical records found in accessible departments.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {allEntries.map(({ tabKey, entry }, idx) => (
+        <div key={idx}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-brand-primary bg-brand-primary/10 px-2 py-1 rounded">
+              {tabKey.replace(/_/g, " ")}
+            </span>
+          </div>
+          <FormEntry
+            entry={entry}
+            dek={dek}
+            accessLevel="view" // Summary is purely view-only aggregation
+            onCorrection={async () => {}} // Corrections should be made in the actual tab
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -471,6 +526,13 @@ export default function StaffPatientProfilePage() {
                 </div>
               </div>
             </div>
+          ) : activeTab === "summary" ? (
+            <SummaryContent
+              patient={patient}
+              visibleTabs={visibleTabs}
+              staffProfile={staffProfile}
+              dek={dek}
+            />
           ) : (
             <TabContent
               patient={patient}

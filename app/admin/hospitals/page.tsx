@@ -167,16 +167,11 @@ export default function HospitalsAdminPage() {
                       </div>
                       <button 
                         onClick={() => {
-                          setSelectedRequest({
-                            ...hosp,
-                            hospitalName: hosp.name,
-                            isAlreadyProvisioned: true,
-                          });
-                          setIsProvisionModalOpen(true);
+                          window.location.href = `/admin/hospitals/${hosp.id}`;
                         }}
                         className="ml-4 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors shrink-0"
                       >
-                        View Details
+                        Manage Slots & Details
                       </button>
                     </div>
                   </motion.div>

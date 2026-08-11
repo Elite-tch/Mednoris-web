@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -99,7 +99,8 @@ export default function PatientsPage() {
                     key={p.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1, transition: { delay: i * 0.03 } }}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors group cursor-pointer" 
+                    onClick={() => router.push(`/h/${slug}/admin/patients/${p.id}`)}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
