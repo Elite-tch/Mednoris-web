@@ -8,9 +8,10 @@ export default function ConditionalShell({ children }: { children: React.ReactNo
   const isPatientArea = pathname.startsWith("/patient");
   const isDoctorArea = pathname.startsWith("/doctor");
   const isAdminArea = pathname.startsWith("/admin");
+  const isHospitalArea = pathname.startsWith("/h");
 
   // Only hide the Navbar and Footer if we are inside the dashboard areas
-  if (isPatientArea || isDoctorArea || isAdminArea) {
+  if (isPatientArea || isDoctorArea || isAdminArea || isHospitalArea) {
     return <>{children}</>;
   }
 

@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function Navbar() {
   const { login, logout, authenticated, user } = usePrivy();
+  const pathname = usePathname();
   const [role, setRole] = useState("patient");
   const [isFetchingRole, setIsFetchingRole] = useState(false);
 
@@ -51,11 +53,33 @@ export default function Navbar() {
         </div>
       
       <div className="hidden md:flex gap-8 text-sm uppercase tracking-wide">
-        <Link href="/" className="hover:text-brand-accent transition-colors">Home</Link>
-        <Link href="/about" className="hover:text-brand-accent transition-colors">About Us</Link>
-        <Link href="#doctors" className="hover:text-brand-accent transition-colors">Find a Doctor</Link>
-        <Link href="/contact" className="hover:text-brand-accent transition-colors">Contact</Link>
-        <Link href="hospitals" className="hover:text-brand-accent transition-colors">For Hospitals</Link>
+        {([
+          { href: "/",            label: "Home" },
+          { href: "/about",       label: "About Us" },
+          { href: "#doctors",    label: "Find a Doctor" },
+          { href: "/contact",    label: "Contact" },
+          { href: "/for-hospitals", label: "For Hospitals" },
+        ] as { href: string; label: string }[]).map(({ href, label }) => {
+          const isActive =
+            href === "/"
+              ? pathname === "/"
+              : href.startsWith("#")
+              ? false
+              : pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`relative py-1 transition-colors ${
+                isActive
+                  ? "text-brand-accent font-semibold after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-brand-accent after:rounded-full"
+                  : "hover:text-brand-accent"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="flex gap-4">

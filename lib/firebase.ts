@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 // import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -15,11 +16,13 @@ const firebaseConfig = {
 // Initialize Firebase only if it hasn't been initialized yet (avoids Next.js HMR issues)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-// Analytics is only available in the browser
-// let analytics;
-// if (typeof window !== "undefined") {
-//   analytics = getAnalytics(app);
-// }
+// Use this for creating new users without signing out the current admin
+const getSecondaryAuth = () => {
+  const apps = getApps();
+  const secondaryApp = apps.find(a => a.name === "Secondary") || initializeApp(firebaseConfig, "Secondary");
+  return getAuth(secondaryApp);
+};
 
-export { app, db };
+export { app, db, auth, getSecondaryAuth };

@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Building2 } from "lucide-react";
 
 export const navItems = [
   { label: "Platform Analytics", href: "/admin", icon: LayoutDashboard },
   { label: "Verification Queue", href: "/admin/verification", icon: ShieldCheck },
+  { label: "Hospitals (B2B)", href: "/admin/hospitals", icon: Building2 },
 ];
 
 export default function AdminSidebar() {

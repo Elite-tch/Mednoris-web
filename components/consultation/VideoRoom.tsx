@@ -352,7 +352,7 @@ export default function VideoRoom({ appointmentId, isDoctor }: { appointmentId: 
           onClick={endCall}
           className="flex items-center gap-1.5 md:gap-2 px-4 md:px-6 py-3 rounded-full bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer font-bold text-xs md:text-sm ml-1 md:ml-2"
         >
-          <PhoneOff size={16} className="md:w-18 md:h-18" />
+          <PhoneOff size={16} className="md:w-5 md:h-5" />
           <span className="hidden sm:inline">End Call</span>
         </button>
       </div>

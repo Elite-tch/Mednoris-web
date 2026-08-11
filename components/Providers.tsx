@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from '@privy-io/react-auth';
+import { CryptoProvider } from '@/contexts/CryptoContext';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      {children}
+      <CryptoProvider>
+        {children}
+      </CryptoProvider>
     </PrivyProvider>
   );
 }
