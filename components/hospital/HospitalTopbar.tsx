@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { LogOut, Building2, RotateCw } from "lucide-react";
+import { LogOut, Building2, RotateCw, Menu } from "lucide-react";
 
 export default function HospitalTopbar() {
   const params = useParams();
@@ -43,12 +43,18 @@ export default function HospitalTopbar() {
   };
 
   return (
-    <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-6 h-16 flex items-center justify-between shrink-0">
+    <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 md:px-6 h-16 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-3">
+        <button 
+          onClick={() => window.dispatchEvent(new Event("toggleHospitalSidebar"))}
+          className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <Menu size={24} />
+        </button>
         <div className="w-9 h-9 bg-brand-primary/10 text-brand-primary rounded-lg flex items-center justify-center">
           <Building2 size={18} />
         </div>
-        <div>
+        <div className="hidden sm:block">
           <p className="font-bold text-gray-900 leading-tight text-sm">{hospital?.name || "Hospital Workspace"}</p>
           <p className="text-xs text-gray-400">Admin Portal</p>
         </div>

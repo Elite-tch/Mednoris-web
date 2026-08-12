@@ -99,6 +99,7 @@ export function canPrintCard(role: string): boolean {
 /**
  * Specifically checks if a role is permitted to register new patients.
  */
-export function canRegisterPatient(role: string): boolean {
+export function canRegisterPatient(role: string, fullAccess?: boolean): boolean {
+  if (fullAccess) return true;
   return ["owner", "admin", "receptionist"].includes(role);
 }

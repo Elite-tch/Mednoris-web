@@ -396,9 +396,21 @@ export default function StaffPatientProfilePage() {
   const [loading, setLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<string>("basic_info");
-  const [visibleTabs, setVisibleTabs] = useState<string[]>([]);
+  const [newlyAddedTabs, setNewlyAddedTabs] = useState<string[]>([]);
+  const [isAddingTab, setIsAddingTab] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  // Decrypted patient detail fields (populated from encryptedDetails or legacy plaintext)
+  const [patientDetails, setPatientDetails] = useState<any>(null);
+  const [patientHeadshot, setPatientHeadshot] = useState<string | null>(null);
 
   const { dek } = useCrypto();
+
+  const baseVisibleTabs = staffProfile ? getVisibleSections(staffProfile.role, staffProfile.fullAccess) : [];
+  const existingPatientTabs = Object.keys(patient?.tabs || {}).filter(k => k !== "receptionist" && k !== "audit_log" && k !== "basic_info" && k !== "summary");
+  
+  const computedVisibleTabs = staffProfile?.fullAccess 
+    ? Array.from(new Set([...baseVisibleTabs, ...existingPatientTabs, ...newlyAddedTabs]))
+    : baseVisibleTabs;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -408,10 +420,7 @@ export default function StaffPatientProfilePage() {
         const data = s.data();
         setStaffProfile(data);
         const tabs = getVisibleSections(data.role, data.fullAccess);
-        setVisibleTabs(tabs);
-        if (tabs.length > 0) {
-          setActiveTab(tabs[0]);
-        }
+        if (tabs.length > 0) setActiveTab(tabs[0]);
       }
     });
     return () => unsubscribe();
@@ -428,11 +437,57 @@ export default function StaffPatientProfilePage() {
 
   useEffect(() => { fetchPatient(); }, [patientId]);
 
+  // Decrypt patient details once both patient and dek are available
+  useEffect(() => {
+    async function decryptPatientDetails() {
+      if (!patient || !dek) {
+        // Fallback: use plaintext fields if they exist (legacy records)
+        if (patient) {
+          setPatientDetails({
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            dob: patient.dob,
+            gender: patient.gender,
+            phone: patient.phone,
+            address: patient.address,
+          });
+          setPatientHeadshot(patient.headshotBase64 || null);
+        }
+        return;
+      }
+      try {
+        if (patient.encryptedDetails) {
+          const details = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
+          setPatientDetails(details);
+        } else {
+          // Legacy plaintext fallback
+          setPatientDetails({
+            firstName: patient.firstName,
+            lastName: patient.lastName,
+            dob: patient.dob,
+            gender: patient.gender,
+            phone: patient.phone,
+            address: patient.address,
+          });
+        }
+        if (patient.encryptedHeadshot) {
+          const headshot = await decryptData(patient.encryptedHeadshot.ciphertext, patient.encryptedHeadshot.iv, dek);
+          setPatientHeadshot(headshot);
+        } else {
+          setPatientHeadshot(patient.headshotBase64 || null);
+        }
+      } catch (err) {
+        console.error("Failed to decrypt patient details", err);
+      }
+    }
+    decryptPatientDetails();
+  }, [patient, dek]);
+
   if (loading) {
     return <div className="flex h-96 items-center justify-center"><Loader2 className="animate-spin text-brand-primary" size={32} /></div>;
   }
 
-  if (!patient || visibleTabs.length === 0) {
+  if (!patient || computedVisibleTabs.length === 0) {
     return (
       <div className="p-8">
         <Link href={`/h/${slug}/staff/patients`} className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 mb-6 transition-colors">
@@ -454,17 +509,21 @@ export default function StaffPatientProfilePage() {
         <Lock size={120} className="absolute -right-10 -bottom-10 text-gray-50 opacity-50 pointer-events-none" />
         
         <div className="w-16 h-16 bg-purple-50 text-purple-600 font-black text-2xl rounded-full flex items-center justify-center shrink-0 z-10 overflow-hidden border border-purple-100">
-          {patient.headshotBase64 ? (
-            <img src={patient.headshotBase64} alt="Headshot" className="w-full h-full object-cover" />
+          {patientHeadshot ? (
+            <img src={patientHeadshot} alt="Headshot" className="w-full h-full object-cover" />
           ) : (
-            patient.firstName?.charAt(0)
+            (patientDetails?.firstName || patient.firstName)?.charAt(0) || "?"
           )}
         </div>
         <div className="flex-1 min-w-0 z-10">
-          <h2 className="text-2xl font-black text-gray-900">{patient.firstName} {patient.lastName}</h2>
+          <h2 className="text-2xl font-black text-gray-900">
+            {patientDetails ? `${patientDetails.firstName} ${patientDetails.lastName}` : patient.mednorisId}
+          </h2>
           <div className="flex flex-wrap items-center gap-3 mt-1">
             <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-0.5 rounded-lg">{patient.mednorisId}</code>
-            <span className="text-xs text-gray-400 capitalize">{patient.gender} · DOB: {patient.dob}</span>
+            {patientDetails && (
+              <span className="text-xs text-gray-400 capitalize">{patientDetails.gender} · DOB: {patientDetails.dob}</span>
+            )}
           </div>
         </div>
         <div className="text-right text-xs text-gray-400 z-10">
@@ -475,7 +534,7 @@ export default function StaffPatientProfilePage() {
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center border-b border-gray-100 overflow-x-auto hide-scrollbar">
-          {visibleTabs.map(tab => (
+          {computedVisibleTabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -484,6 +543,43 @@ export default function StaffPatientProfilePage() {
               {tab.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
             </button>
           ))}
+          {staffProfile?.fullAccess && (
+            <div className="px-3">
+              {isAddingTab ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={newTabName}
+                    onChange={e => setNewTabName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && newTabName.trim()) {
+                        const key = newTabName.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+                        if (!computedVisibleTabs.includes(key)) {
+                          setNewlyAddedTabs(prev => [...prev, key]);
+                        }
+                        setActiveTab(key);
+                        setIsAddingTab(false);
+                        setNewTabName("");
+                      }
+                      if (e.key === "Escape") {
+                        setIsAddingTab(false);
+                        setNewTabName("");
+                      }
+                    }}
+                    placeholder="e.g. Scientific Report"
+                    className="w-40 px-3 py-1.5 border border-brand-primary/30 rounded-lg text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
+                  />
+                  <button onClick={() => { setIsAddingTab(false); setNewTabName(""); }} className="text-gray-400 hover:text-gray-600">
+                    <Plus size={16} className="rotate-45" />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setIsAddingTab(true)} className="flex items-center gap-1 text-xs font-bold text-brand-primary hover:text-brand-secondary transition-colors whitespace-nowrap">
+                  <Plus size={14} /> Add Tab
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-6">
@@ -499,37 +595,43 @@ export default function StaffPatientProfilePage() {
                 <h3 className="font-bold text-gray-900">Patient Details</h3>
                 <span className="text-xs font-bold text-gray-400 bg-white px-2 py-1 rounded border border-gray-200">Registration Info</span>
               </div>
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Full Name</p>
-                  <p className="text-sm font-semibold text-gray-900">{patient.firstName} {patient.lastName}</p>
+              {!patientDetails ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-gray-400 text-sm">
+                  <Loader2 size={16} className="animate-spin" /> Decrypting patient record...
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Mednoris ID</p>
-                  <p className="text-sm font-semibold text-gray-900">{patient.mednorisId}</p>
+              ) : (
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Full Name</p>
+                    <p className="text-sm font-semibold text-gray-900">{patientDetails.firstName} {patientDetails.lastName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Mednoris ID</p>
+                    <p className="text-sm font-semibold text-gray-900">{patient.mednorisId}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date of Birth</p>
+                    <p className="text-sm font-semibold text-gray-900">{patientDetails.dob || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Gender</p>
+                    <p className="text-sm font-semibold text-gray-900 capitalize">{patientDetails.gender || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
+                    <p className="text-sm font-semibold text-gray-900">{patientDetails.phone || "—"}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Home Address</p>
+                    <p className="text-sm font-semibold text-gray-900">{patientDetails.address || "—"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date of Birth</p>
-                  <p className="text-sm font-semibold text-gray-900">{patient.dob || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Gender</p>
-                  <p className="text-sm font-semibold text-gray-900 capitalize">{patient.gender || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
-                  <p className="text-sm font-semibold text-gray-900">{patient.phone || "—"}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Home Address</p>
-                  <p className="text-sm font-semibold text-gray-900">{patient.address || "—"}</p>
-                </div>
-              </div>
+              )}
             </div>
           ) : activeTab === "summary" ? (
             <SummaryContent
               patient={patient}
-              visibleTabs={visibleTabs}
+              visibleTabs={computedVisibleTabs}
               staffProfile={staffProfile}
               dek={dek}
             />

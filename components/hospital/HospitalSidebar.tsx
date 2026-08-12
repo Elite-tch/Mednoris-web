@@ -2,12 +2,25 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { LayoutDashboard, Users, Activity, History, Settings, UserPlus, QrCode } from "lucide-react";
+import { useState, useEffect } from "react";
+import { LayoutDashboard, Users, Activity, History, Settings, UserPlus, QrCode, X } from "lucide-react";
 
 export default function HospitalSidebar() {
   const pathname = usePathname();
   const params = useParams();
   const slug = params.slug as string;
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen((prev) => !prev);
+    window.addEventListener("toggleHospitalSidebar", handleToggle);
+    return () => window.removeEventListener("toggleHospitalSidebar", handleToggle);
+  }, []);
+
+  // Close sidebar on navigation on mobile
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   const base = `/h/${slug}/admin`;
 
@@ -20,13 +33,29 @@ export default function HospitalSidebar() {
   ];
 
   return (
-    <aside className="hidden md:flex flex-col w-64 min-h-screen bg-brand-primary text-white shrink-0">
-      {/* Logo */}
-      <div className="h-20 flex items-center px-6 border-b border-white/10">
-        <Link href="/?view=landing" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Mednoris" className="h-22 w-22 object-contain brightness-0 invert" />
-        </Link>
-      </div>
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 md:hidden" 
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 min-h-screen bg-brand-primary text-white shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Logo */}
+        <div className="h-16 md:h-20 flex items-center justify-between px-6 border-b border-white/10 shrink-0">
+          <Link href="/?view=landing" className="flex items-center gap-2">
+            <img src="/logo.png" alt="Mednoris" className="h-8 md:h-10 object-contain brightness-0 invert" />
+          </Link>
+          <button className="md:hidden text-white/70 hover:text-white" onClick={() => setIsOpen(false)}>
+            <X size={20} />
+          </button>
+        </div>
 
       {/* Section Label */}
       <div className="px-6 pt-6 pb-2">
@@ -56,6 +85,7 @@ export default function HospitalSidebar() {
           );
         })}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

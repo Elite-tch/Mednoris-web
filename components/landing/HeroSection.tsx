@@ -6,7 +6,7 @@ import { usePrivy } from '@privy-io/react-auth';
 export default function HeroSection() {
   const { login } = usePrivy();
   return (
-    <section className="relative bg-[#dedaee] md:bg-transparent w-full h-[90vh] flex items-center justify-center overflow-hidden ">
+    <section className="relative bg-[#dedaee] md:bg-transparent md:pb-0 pb-10 w-full md:h-[90vh] flex items-center justify-center overflow-hidden ">
       <div className="grid grid-cols-1 md:grid-cols-2">
         <div className="z-10  md:max-w-3xl md:px-0 px-5 md:pl-10 pt-[12%] md:pt-10 flex flex-col ">
           <motion.h1

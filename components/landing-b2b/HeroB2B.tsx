@@ -8,7 +8,7 @@ import Image from "next/image";
 export default function HeroB2B() {
   return (
     <section
-      className="relative overflow-hidden text-brand-primary py-10  bg-[#e1d6f6]"
+      className="relative overflow-hidden text-brand-primary py-15 md:py-10  bg-[#e1d6f6]"
     >
       <div className="container mx-auto pl-6 md:pl-12 relative z-10 max-w-7xl">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -18,7 +18,7 @@ export default function HeroB2B() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="max-w-2xl"
           >
-            <h1 className="text-5xl md:text-6xl font-bold leading-tight mb-6">
+            <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
               Digitize Hospital Records. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-accent to-brand-secondary">
                 No Patient App Required.

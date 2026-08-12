@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { Users, Activity, HeartPulse, Stethoscope } from "lucide-react";
+import { Users, Activity, HeartPulse, Stethoscope, Loader2 } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -15,8 +15,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { motion } from "framer-motion";
 
-const data = [
+const chartData = [
   { name: "Mon", patients: 120, consultations: 45 },
   { name: "Tue", patients: 145, consultations: 52 },
   { name: "Wed", patients: 160, consultations: 60 },
@@ -26,11 +27,27 @@ const data = [
   { name: "Sun", patients: 110, consultations: 40 },
 ];
 
+function getTimeDiff(ts: any) {
+  if (!ts?.toDate) return "Just now";
+  const diff = (Date.now() - ts.toDate().getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return ts.toDate().toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 export default function HospitalDashboardPage() {
   const params = useParams();
   const slug = params.slug as string;
   const [hospital, setHospital] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeStaff: 0,
+    recentActivity: [] as any[]
+  });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -45,6 +62,34 @@ export default function HospitalDashboardPage() {
     return () => unsubscribe();
   }, [slug]);
 
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const [patSnap, staffSnap, logsSnap] = await Promise.all([
+          getDocs(query(collection(db, "hospital_patients"), where("hospitalSlug", "==", slug))),
+          getDocs(query(collection(db, "hospital_staff"), where("hospitalSlug", "==", slug))),
+          getDocs(query(collection(db, "audit_logs"), where("hospitalSlug", "==", slug), orderBy("timestamp", "desc"), limit(5)))
+        ]);
+
+        setStats({
+          totalPatients: patSnap.size,
+          activeStaff: staffSnap.size,
+          recentActivity: logsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        });
+      } catch (err) {
+        console.error("Failed to load stats", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, [slug]);
+
+  if (loading) {
+    return <div className="flex h-[80vh] items-center justify-center"><Loader2 className="animate-spin text-brand-primary" size={32} /></div>;
+  }
+
   return (
     <div className="p-2 md:p-8">
       <div className="mb-8">
@@ -58,10 +103,9 @@ export default function HospitalDashboardPage() {
             <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
               <Users size={24} />
             </div>
-            <span className="text-sm font-bold text-green-600">+12%</span>
           </div>
           <h3 className="text-gray-500 font-medium mb-1">Total Patients</h3>
-          <p className="text-3xl font-black text-gray-900">1,248</p>
+          <p className="text-3xl font-black text-gray-900">{stats.totalPatients}</p>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
@@ -69,10 +113,9 @@ export default function HospitalDashboardPage() {
             <div className="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center">
               <Activity size={24} />
             </div>
-            <span className="text-sm font-bold text-green-600">+5%</span>
           </div>
           <h3 className="text-gray-500 font-medium mb-1">Today's Visits</h3>
-          <p className="text-3xl font-black text-gray-900">42</p>
+          <p className="text-3xl font-black text-gray-900">0</p>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
@@ -82,7 +125,7 @@ export default function HospitalDashboardPage() {
             </div>
           </div>
           <h3 className="text-gray-500 font-medium mb-1">Active Staff</h3>
-          <p className="text-3xl font-black text-gray-900">18</p>
+          <p className="text-3xl font-black text-gray-900">{stats.activeStaff}</p>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
@@ -92,7 +135,7 @@ export default function HospitalDashboardPage() {
             </div>
           </div>
           <h3 className="text-gray-500 font-medium mb-1">Critical Cases</h3>
-          <p className="text-3xl font-black text-gray-900">3</p>
+          <p className="text-3xl font-black text-gray-900">0</p>
         </div>
       </div>
 
@@ -101,7 +144,7 @@ export default function HospitalDashboardPage() {
           <h3 className="text-lg font-bold text-gray-900 mb-6">Patient Activity (Last 7 Days)</h3>
           <div className="h-[320px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorPatients" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3} />
@@ -126,22 +169,26 @@ export default function HospitalDashboardPage() {
           </div>
         </div>
         
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 overflow-y-auto max-h-[420px]">
           <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Activity</h3>
           <div className="space-y-6">
-            {[1,2,3,4,5].map((i) => (
-              <div key={i} className="flex gap-4">
-                <div className="w-2 h-2 mt-2 rounded-full bg-brand-primary shrink-0" />
-                <div>
-                  <p className="text-sm text-gray-900 font-medium">
-                    Nurse Sarah added a new patient record.
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {i * 10} minutes ago
-                  </p>
+            {stats.recentActivity.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No recent activity.</p>
+            ) : (
+              stats.recentActivity.map((log, i) => (
+                <div key={log.id || i} className="flex gap-4">
+                  <div className="w-2 h-2 mt-2 rounded-full bg-brand-primary shrink-0" />
+                  <div>
+                    <p className="text-sm text-gray-900 font-medium">
+                      {log.action}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      by {log.actorName} · {getTimeDiff(log.timestamp)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

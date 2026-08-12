@@ -6,11 +6,13 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { motion } from "framer-motion";
-import { Plus, Loader2, ArrowLeft, Camera, ShieldCheck, Download, Printer } from "lucide-react";
+import { Plus, Loader2, ArrowLeft, Camera, ShieldCheck, Printer, Lock } from "lucide-react";
 import Link from "next/link";
 import { canRegisterPatient } from "@/lib/rbac";
 import { ShieldAlert } from "lucide-react";
 import WebcamCapture from "@/components/hospital/WebcamCapture";
+import { useCrypto } from "@/contexts/CryptoContext";
+import { encryptData } from "@/lib/crypto";
 
 function generateMednorisId(slug: string) {
   const prefix = slug.substring(0, 3).toUpperCase();
@@ -57,6 +59,9 @@ export default function StaffAddPatientPage() {
   const [newPatientId, setNewPatientId] = useState<string | null>(null);
   const [newMednorisId, setNewMednorisId] = useState<string | null>(null);
 
+  // The DEK from the session — required for encryption
+  const { dek } = useCrypto();
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
@@ -72,16 +77,45 @@ export default function StaffAddPatientPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dek) {
+      setError("Encryption key is not loaded. Please log out and log back in.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const mednorisId = generateMednorisId(slug);
+
+      // Encrypt all sensitive patient fields using the hospital DEK
+      const encryptedDetails = await encryptData(
+        {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          dob: form.dob,
+          gender: form.gender,
+          phone: form.phone,
+          address: form.address,
+        },
+        dek
+      );
+
+      // Encrypt headshot separately (it's large, keep it isolated)
+      const encryptedHeadshot = headshotBase64
+        ? await encryptData(headshotBase64, dek)
+        : null;
+
       const docRef = await addDoc(collection(db, "hospital_patients"), {
-        ...form,
-        headshotBase64,
+        // Unencrypted fields used for search/display of non-PII data
         mednorisId,
         hospitalSlug: slug,
         hospitalName: hospital?.name,
+        createdBy: staffProfile?.name || "Staff",
+        createdByRole: staffProfile?.role || "staff",
+        createdAt: serverTimestamp(),
+        // Encrypted PII
+        encryptedDetails,
+        encryptedHeadshot,
+        // Clinical tabs
         tabs: {
           basic_info: [],
           summary: [],
@@ -89,17 +123,14 @@ export default function StaffAddPatientPage() {
           lab: [],
           pharmacy: [],
         },
-        createdBy: staffProfile?.name || "Staff",
-        createdByRole: staffProfile?.role || "staff",
-        createdAt: serverTimestamp(),
       });
 
-      // Audit log
+      // Audit log uses only non-PII (ID, not name)
       await addDoc(collection(db, "audit_logs"), {
         hospitalSlug: slug,
         actorName: staffProfile?.name || "Staff",
         actorRole: staffProfile?.role || "staff",
-        action: `Registered new patient: ${form.firstName} ${form.lastName} (${mednorisId})`,
+        action: `Registered new patient with ID: ${mednorisId}`,
         timestamp: serverTimestamp(),
       });
 
@@ -139,8 +170,18 @@ export default function StaffAddPatientPage() {
 
       <div className="mb-8">
         <h1 className="text-2xl font-black text-gray-900 mb-1">Register New Patient</h1>
-        <p className="text-gray-500">Create a comprehensive medical record for a new patient.</p>
+        <p className="text-gray-500">All patient details are end-to-end encrypted before saving.</p>
       </div>
+
+      {!dek && (
+        <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl p-4">
+          <Lock size={18} className="text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-red-700">Encryption Key Missing</p>
+            <p className="text-xs text-red-600 mt-0.5">Your session key is not loaded. Please log out and log back in to activate encryption.</p>
+          </div>
+        </div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -153,9 +194,9 @@ export default function StaffAddPatientPage() {
               <ShieldCheck size={32} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-gray-900">Patient Registered!</h2>
+              <h2 className="text-xl font-black text-gray-900">Patient Registered &amp; Encrypted!</h2>
               <p className="text-gray-500 text-sm mt-1">
-                {form.firstName} {form.lastName}'s Mednoris ID has been created. Print or save the QR card below.
+                {form.firstName} {form.lastName}'s record has been securely saved. Print or save the QR card below.
               </p>
             </div>
 
@@ -203,7 +244,7 @@ export default function StaffAddPatientPage() {
           <form onSubmit={handleAdd} className="space-y-6">
             <div className="flex flex-col items-center gap-3 pb-6 border-b border-gray-100">
               {headshotBase64 ? (
-                <div 
+                <div
                   onClick={() => setShowCamera(true)}
                   className="w-24 h-24 rounded-full bg-gray-50 flex items-center justify-center border-4 border-white shadow-md hover:ring-2 hover:ring-brand-primary/50 transition-all cursor-pointer relative group overflow-hidden"
                 >
@@ -213,7 +254,7 @@ export default function StaffAddPatientPage() {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   onClick={() => setShowCamera(true)}
                   className="w-24 h-24 rounded-full bg-gray-50 flex items-center justify-center border-2 border-dashed border-gray-200 hover:border-brand-primary hover:bg-brand-primary/5 transition-colors cursor-pointer group"
                 >
@@ -264,10 +305,14 @@ export default function StaffAddPatientPage() {
 
             {error && <p className="text-sm text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>}
 
-            <div className="pt-4 border-t border-gray-100">
-              <button type="submit" disabled={loading} className="w-full sm:w-auto px-8 py-3.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors disabled:opacity-70 flex items-center justify-center gap-2">
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-                {loading ? "Registering Patient..." : "Register Patient"}
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <Lock size={13} />
+                <span>All details are encrypted with AES-256-GCM before saving</span>
+              </div>
+              <button type="submit" disabled={loading || !dek} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors disabled:opacity-70 flex items-center gap-2">
+                {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                {loading ? "Encrypting & Saving..." : "Register Patient"}
               </button>
             </div>
           </form>
@@ -275,7 +320,7 @@ export default function StaffAddPatientPage() {
       </motion.div>
 
       {showCamera && (
-        <WebcamCapture 
+        <WebcamCapture
           onCapture={(base64) => setHeadshotBase64(base64)}
           onClose={() => setShowCamera(false)}
         />
@@ -283,4 +328,3 @@ export default function StaffAddPatientPage() {
     </div>
   );
 }
-

@@ -6,9 +6,101 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { motion } from "framer-motion";
-import { Plus, Loader2, Search, User, ArrowRight, Printer } from "lucide-react";
+import { Plus, Loader2, Search, User, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
-import { canPrintCard, canRegisterPatient } from "@/lib/rbac";
+import { canRegisterPatient } from "@/lib/rbac";
+import { useCrypto } from "@/contexts/CryptoContext";
+import { decryptData } from "@/lib/crypto";
+
+// Each row decrypts its own patient data independently
+function PatientRow({ patient, dek, slug, i }: { patient: any; dek: CryptoKey | null; slug: string; i: number }) {
+  const [details, setDetails] = useState<any>(null);
+
+  useEffect(() => {
+    async function decrypt() {
+      if (!dek) {
+        // Plaintext fallback for legacy records
+        setDetails({
+          firstName: patient.firstName || "",
+          lastName: patient.lastName || "",
+          gender: patient.gender || "",
+          dob: patient.dob || "",
+        });
+        return;
+      }
+      try {
+        if (patient.encryptedDetails) {
+          const d = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
+          setDetails(d);
+        } else {
+          setDetails({
+            firstName: patient.firstName || "",
+            lastName: patient.lastName || "",
+            gender: patient.gender || "",
+            dob: patient.dob || "",
+          });
+        }
+      } catch {
+        setDetails(null); // show lock icon on decryption failure
+      }
+    }
+    decrypt();
+  }, [patient, dek]);
+
+  const initials = details?.firstName?.charAt(0) || "?";
+  const displayName = details ? `${details.firstName} ${details.lastName}`.trim() : null;
+
+  return (
+    <motion.tr
+      key={patient.id}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: { delay: i * 0.03 } }}
+      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+    >
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-purple-50 text-purple-600 font-bold rounded-full flex items-center justify-center text-sm shrink-0">
+            {details === null ? <Lock size={14} /> : initials}
+          </div>
+          <div>
+            {details === null ? (
+              <p className="text-sm font-semibold text-red-400">Decryption failed</p>
+            ) : displayName ? (
+              <p className="font-semibold text-gray-900">{displayName}</p>
+            ) : (
+              <div className="flex items-center gap-1 text-gray-400">
+                <Loader2 size={13} className="animate-spin" />
+                <span className="text-xs">Decrypting...</span>
+              </div>
+            )}
+            {details && (
+              <p className="text-xs text-gray-400 capitalize">{details.gender}</p>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 hidden sm:table-cell">
+        <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-1 rounded-lg">
+          {patient.mednorisId}
+        </code>
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-500 hidden md:table-cell">
+        {details?.dob || "—"}
+      </td>
+      <td className="px-6 py-4 hidden md:table-cell">
+        <span className="text-xs font-medium text-gray-600">{patient.createdBy}</span>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <Link
+          href={`/h/${slug}/staff/patients/${patient.id}`}
+          className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline"
+        >
+          View Profile <ArrowRight size={13} />
+        </Link>
+      </td>
+    </motion.tr>
+  );
+}
 
 export default function StaffPatientsPage() {
   const params = useParams();
@@ -19,6 +111,8 @@ export default function StaffPatientsPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  const { dek } = useCrypto();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -43,7 +137,7 @@ export default function StaffPatientsPage() {
 
   useEffect(() => { fetchPatients(); }, [slug]);
 
-  // RESTRICTED SEARCH: ONLY search by Mednoris ID as requested
+  // Search only by Mednoris ID (names are encrypted — cannot search plaintext)
   const filtered = patients.filter(p =>
     search === "" ||
     p.mednorisId?.toLowerCase().includes(search.toLowerCase())
@@ -51,14 +145,14 @@ export default function StaffPatientsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h2 className="text-2xl font-black text-gray-900 mb-1">Patients Directory</h2>
           <p className="text-gray-500">{patients.length} patients registered at {hospital?.name || "the hospital"}.</p>
         </div>
         {staffProfile && canRegisterPatient(staffProfile.role) && (
-          <Link 
-            href={`/h/${slug}/staff/patients/add`} 
+          <Link
+            href={`/h/${slug}/staff/patients/add`}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors text-sm shrink-0"
           >
             <Plus size={16} /> Register Patient
@@ -71,15 +165,24 @@ export default function StaffPatientsPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by Mednoris ID only..."
+          placeholder="Search by Mednoris ID..."
           className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary"
         />
       </div>
 
+      {!dek && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-6">
+          <Lock size={16} className="text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-700 font-medium">
+            Encryption key not loaded — patient names will not be visible. Please log out and log back in.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-brand-primary" size={32} /></div>
       ) : (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
           {filtered.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <User size={48} className="mx-auto mb-3 opacity-30" />
@@ -93,55 +196,12 @@ export default function StaffPatientsPage() {
                   <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider hidden sm:table-cell">Mednoris ID</th>
                   <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider hidden md:table-cell">Date of Birth</th>
                   <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider hidden md:table-cell">Registered by</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 text-right"></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p, i) => (
-                  <motion.tr
-                    key={p.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1, transition: { delay: i * 0.03 } }}
-                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-purple-50 text-purple-600 font-bold rounded-full flex items-center justify-center text-sm shrink-0">
-                          {p.firstName?.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{p.firstName} {p.lastName}</p>
-                          <p className="text-xs text-gray-400 capitalize">{p.gender}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 hidden sm:table-cell">
-                      <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-1 rounded-lg">{p.mednorisId}</code>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 hidden md:table-cell">{p.dob}</td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <span className="text-xs font-medium text-gray-600">{p.createdBy}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        {staffProfile?.role && canPrintCard(staffProfile.role) && (
-                          <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
-                            title="Print Card"
-                          >
-                            <Printer size={16} />
-                          </button>
-                        )}
-                        <Link
-                          href={`/h/${slug}/staff/patients/${p.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline"
-                        >
-                          View Profile <ArrowRight size={13} />
-                        </Link>
-                      </div>
-                    </td>
-                  </motion.tr>
+                  <PatientRow key={p.id} patient={p} dek={dek} slug={slug} i={i} />
                 ))}
               </tbody>
             </table>

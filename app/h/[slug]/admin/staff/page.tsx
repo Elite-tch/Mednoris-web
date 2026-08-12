@@ -237,11 +237,11 @@ export default function StaffPage() {
           )}
 
           {/* Active Staff List */}
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-x-auto">
+            <div className="p-6 border-b border-gray-100 min-w-[600px]">
               <h3 className="font-bold text-gray-900">Active Staff Accounts</h3>
             </div>
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Name</th>
