@@ -144,7 +144,7 @@ export default function StaffAddPatientPage() {
     }
   };
 
-  if (staffProfile && !canRegisterPatient(staffProfile.role)) {
+  if (staffProfile && !canRegisterPatient(staffProfile.role, staffProfile.fullAccess)) {
     return (
       <div className="max-w-3xl mx-auto py-20 text-center">
         <ShieldAlert size={48} className="mx-auto text-red-500 mb-4 opacity-50" />

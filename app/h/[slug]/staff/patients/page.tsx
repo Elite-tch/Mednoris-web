@@ -150,7 +150,7 @@ export default function StaffPatientsPage() {
           <h2 className="text-2xl font-black text-gray-900 mb-1">Patients Directory</h2>
           <p className="text-gray-500">{patients.length} patients registered at {hospital?.name || "the hospital"}.</p>
         </div>
-        {staffProfile && canRegisterPatient(staffProfile.role) && (
+        {staffProfile && canRegisterPatient(staffProfile.role, staffProfile.fullAccess) && (
           <Link
             href={`/h/${slug}/staff/patients/add`}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors text-sm shrink-0"
