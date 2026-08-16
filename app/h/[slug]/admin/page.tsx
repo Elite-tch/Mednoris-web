@@ -16,16 +16,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { motion } from "framer-motion";
-
-const chartData = [
-  { name: "Mon", patients: 120, consultations: 45 },
-  { name: "Tue", patients: 145, consultations: 52 },
-  { name: "Wed", patients: 160, consultations: 60 },
-  { name: "Thu", patients: 130, consultations: 48 },
-  { name: "Fri", patients: 180, consultations: 75 },
-  { name: "Sat", patients: 95, consultations: 30 },
-  { name: "Sun", patients: 110, consultations: 40 },
-];
+import { getLastNDates, formatDayLabel } from "@/lib/stats";
 
 function getTimeDiff(ts: any) {
   if (!ts?.toDate) return "Just now";
@@ -48,6 +39,7 @@ export default function HospitalDashboardPage() {
     activeStaff: 0,
     recentActivity: [] as any[]
   });
+  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -66,12 +58,34 @@ export default function HospitalDashboardPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const [patSnap, staffSnap, logsSnap] = await Promise.all([
+
+        const last7 = getLastNDates(7);
+
+        const [patSnap, staffSnap, logsSnap, ...dailySnaps] = await Promise.all([
           getDocs(query(collection(db, "hospital_patients"), where("hospitalSlug", "==", slug))),
           getDocs(query(collection(db, "hospital_staff"), where("hospitalSlug", "==", slug))),
-          getDocs(query(collection(db, "audit_logs"), where("hospitalSlug", "==", slug), orderBy("timestamp", "desc"), limit(5)))
+          getDocs(query(collection(db, "audit_logs"), where("hospitalSlug", "==", slug), orderBy("timestamp", "desc"), limit(5))),
+          // Fetch each of the last 7 daily_stats docs
+          ...last7.map(date =>
+            getDoc(doc(db, "hospitals", slug, "daily_stats", date))
+          ),
         ]);
 
+        // Build chart data from daily_stats — one entry per day
+        const chart = last7.map((date, i) => {
+          const snap = dailySnaps[i];
+          const data = snap.exists() ? snap.data() : {};
+          return {
+            name: formatDayLabel(date),
+            date,
+            patients: data.patientsRegistered || 0,
+            consultations: data.consultations || 0,
+            lab: data.labEntries || 0,
+            pharmacy: data.pharmacyEntries || 0,
+          };
+        });
+
+        setChartData(chart);
         setStats({
           totalPatients: patSnap.size,
           activeStaff: staffSnap.size,
@@ -114,8 +128,10 @@ export default function HospitalDashboardPage() {
               <Activity size={24} />
             </div>
           </div>
-          <h3 className="text-gray-500 font-medium mb-1">Today's Visits</h3>
-          <p className="text-3xl font-black text-gray-900">0</p>
+          <h3 className="text-gray-500 font-medium mb-1">Registered Today</h3>
+          <p className="text-3xl font-black text-gray-900">
+            {chartData.length > 0 ? chartData[chartData.length - 1].patients : 0}
+          </p>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
@@ -134,8 +150,10 @@ export default function HospitalDashboardPage() {
               <HeartPulse size={24} />
             </div>
           </div>
-          <h3 className="text-gray-500 font-medium mb-1">Critical Cases</h3>
-          <p className="text-3xl font-black text-gray-900">0</p>
+          <h3 className="text-gray-500 font-medium mb-1">Consultations Today</h3>
+          <p className="text-3xl font-black text-gray-900">
+            {chartData.length > 0 ? chartData[chartData.length - 1].consultations : 0}
+          </p>
         </div>
       </div>
 
@@ -156,19 +174,19 @@ export default function HospitalDashboardPage() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} allowDecimals={false} />
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                 <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   labelStyle={{ fontWeight: 'bold', color: '#111827', marginBottom: '4px' }}
                 />
-                <Area type="monotone" dataKey="patients" stroke="#4F46E5" strokeWidth={3} fillOpacity={1} fill="url(#colorPatients)" name="Total Patients" />
+                <Area type="monotone" dataKey="patients" stroke="#4F46E5" strokeWidth={3} fillOpacity={1} fill="url(#colorPatients)" name="Patients Registered" />
                 <Area type="monotone" dataKey="consultations" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorConsults)" name="Consultations" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 overflow-y-auto max-h-[420px]">
           <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Activity</h3>
           <div className="space-y-6">

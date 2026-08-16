@@ -9,6 +9,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import StaffSidebar from "@/components/hospital/StaffSidebar";
 import StaffTopbar from "@/components/hospital/StaffTopbar";
 import StaffLoginModal from "@/components/hospital/StaffLoginModal";
+import { useCrypto } from "@/contexts/CryptoContext";
 
 /** Shown when a hospital admin tries to access the staff-only dashboard. */
 function AdminBlockedModal({ slug }: { slug: string }) {
@@ -51,11 +52,13 @@ function AdminBlockedModal({ slug }: { slug: string }) {
 export default function StaffDashboardLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const slug = params.slug as string;
+  const { dek } = useCrypto();
 
   const [loading, setLoading] = useState(true);
   const [hospital, setHospital] = useState<any>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [adminBlocked, setAdminBlocked] = useState(false);
+  const [userAuthenticated, setUserAuthenticated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,10 +116,10 @@ export default function StaffDashboardLayout({ children }: { children: React.Rea
         }
 
         // Valid non-admin staff member ✓
-        console.log("User is valid staff. Hiding login modal.");
         if (cancelled) return;
         setAdminBlocked(false);
         setShowLogin(false);
+        setUserAuthenticated(true);
         setLoading(false);
       });
     }
@@ -131,6 +134,9 @@ export default function StaffDashboardLayout({ children }: { children: React.Rea
     };
   }, [slug]);
 
+  // If user is authenticated but DEK was lost (e.g. page refresh), show login again
+  const needsRelogin = userAuthenticated && !dek && !showLogin;
+
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#f8f7fb]">
@@ -141,8 +147,8 @@ export default function StaffDashboardLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f7fb]">
-      {/* Staff login overlay — sits on top of the dashboard shell */}
-      {showLogin && (
+      {/* Staff login overlay — re-shown automatically if DEK is lost on refresh */}
+      {(showLogin || needsRelogin) && (
         <StaffLoginModal slug={slug} hospitalName={hospital?.name} />
       )}
 

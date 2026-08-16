@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
 import { decryptData } from "@/lib/crypto";
 
-function RecentPatientRow({ patient, dek, slug, i }: { patient: any; dek: CryptoKey | null; slug: string; i: number }) {
+function RecentPatientRow({ patient, dek, slug, i }: { patient: any; dek: Uint8Array | null; slug: string; i: number }) {
   const [details, setDetails] = useState<any>(null);
 
   useEffect(() => {

@@ -8,6 +8,8 @@ import { db, auth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, QrCode, Loader2, Search, User, ArrowRight, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { hashData, decryptData } from "@/lib/crypto";
+import { useCrypto } from "@/contexts/CryptoContext";
 
 export default function ScanPatientPage() {
   const params = useParams();
@@ -19,6 +21,7 @@ export default function ScanPatientPage() {
   const [error, setError] = useState<string | null>(null);
   const [foundPatient, setFoundPatient] = useState<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { dek } = useCrypto();
 
   // Auto-focus the input — works for physical QR barcode scanners which act as keyboards
   useEffect(() => {
@@ -26,8 +29,20 @@ export default function ScanPatientPage() {
   }, []);
 
   const handleSearch = async (idToSearch?: string) => {
-    const searchId = (idToSearch || manualId).trim().toUpperCase();
-    if (!searchId) return;
+    let rawSearchInput = (idToSearch || manualId).trim();
+    if (!rawSearchInput) return;
+
+    if (rawSearchInput.includes("http")) {
+      try {
+        const url = new URL(rawSearchInput);
+        const parts = url.pathname.split("/");
+        rawSearchInput = parts[parts.length - 1];
+      } catch (e) {
+        // Ignore URL parsing errors
+      }
+    }
+
+    const searchId = rawSearchInput.toUpperCase();
 
     setLoading(true);
     setError(null);
@@ -43,10 +58,12 @@ export default function ScanPatientPage() {
           return;
         }
 
+        const searchHash = await hashData(searchId);
+
         const q = query(
           collection(db, "hospital_patients"),
           where("hospitalSlug", "==", slug),
-          where("mednorisId", "==", searchId),
+          where("mednorisIdHash", "==", searchHash),
           limit(1)
         );
         const snap = await getDocs(q);
@@ -54,8 +71,20 @@ export default function ScanPatientPage() {
         if (snap.empty) {
           setError(`No patient found with Mednoris ID "${searchId}". Please verify the card.`);
         } else {
-          const data = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          setFoundPatient(data);
+          const rawData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+          let decryptedDetails = null;
+          
+          if (rawData.encryptedDetails && dek) {
+            try {
+              decryptedDetails = await decryptData(rawData.encryptedDetails.ciphertext, rawData.encryptedDetails.iv, dek);
+            } catch (e) {
+              console.error("Failed to decrypt scanned patient", e);
+            }
+          } else {
+            decryptedDetails = { firstName: rawData.firstName };
+          }
+          
+          setFoundPatient({ ...rawData, details: decryptedDetails });
         }
         setLoading(false);
       });
@@ -108,7 +137,7 @@ export default function ScanPatientPage() {
             ) : foundPatient ? (
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 text-green-600 font-black text-2xl rounded-full flex items-center justify-center mx-auto mb-2">
-                  {foundPatient.firstName?.charAt(0)}
+                  {foundPatient.details?.firstName?.charAt(0) || "?"}
                 </div>
                 <p className="text-xs font-bold text-green-700">Found!</p>
               </div>

@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
 import { Loader2, ShieldCheck, Download, Activity, QrCode } from "lucide-react";
 import Link from "next/link";
+import { hashData } from "@/lib/crypto";
 
 function QRCodeCanvas({ value }: { value: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,9 +42,10 @@ export default function PatientPortalPage() {
   useEffect(() => {
     async function fetchPatient() {
       try {
+        const searchHash = await hashData(mednorisId);
         const q = query(
           collection(db, "hospital_patients"),
-          where("mednorisId", "==", mednorisId),
+          where("mednorisIdHash", "==", searchHash),
           limit(1)
         );
         const snap = await getDocs(q);
@@ -121,7 +123,7 @@ export default function PatientPortalPage() {
 
               <div className="mt-8 flex justify-center">
                 <div className="p-4 bg-gray-50 rounded-3xl border border-gray-100 inline-block">
-                  <QRCodeCanvas value={patient.mednorisId} />
+                  <QRCodeCanvas value={`${window.location.origin}/patient/${patient.mednorisId}`} />
                 </div>
               </div>
 

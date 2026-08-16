@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { doc, collection, query, where, orderBy, limit, onSnapshot, updateDoc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Bell, Search, ChevronDown, LogOut, Menu, X } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, Menu, X, RotateCw } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { navItems } from "./Sidebar";
 
@@ -19,6 +19,14 @@ export default function DoctorTopbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    router.refresh();
+    setTimeout(() => setRefreshing(false), 800);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -157,6 +165,15 @@ export default function DoctorTopbar() {
       </Link>
 
       <div className="flex items-center gap-3 ml-auto">
+        {/* Refresh */}
+        <button
+          onClick={handleRefresh}
+          title="Refresh page data"
+          className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-brand-primary/10 hover:text-brand-primary transition-colors cursor-pointer"
+        >
+          <RotateCw size={18} className={refreshing ? "animate-spin" : ""} />
+        </button>
+
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button 

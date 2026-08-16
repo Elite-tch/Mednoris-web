@@ -1,20 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock, Printer } from "lucide-react";
 import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
 import { encryptData, decryptData } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
+import { trackDailyEvent, DailyStatEvent } from "@/lib/stats";
 import { getVisibleSections, getAccessLevel, RecordSection } from "@/lib/rbac";
 import { getSuggestions } from "@/lib/labelSuggestions";
 
+function QRCodeCanvas({ value }: { value: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    async function renderQR() {
+      if (!canvasRef.current || !value) return;
+      try {
+        const QRCode = (await import("qrcode")).default;
+        await QRCode.toCanvas(canvasRef.current, value, {
+          width: 180,
+          margin: 2,
+          color: { dark: "#1e1b4b", light: "#ffffff" },
+        });
+      } catch (err) {
+        console.error("QR render error", err);
+      }
+    }
+    renderQR();
+  }, [value]);
+
+  return <canvas ref={canvasRef} className="rounded-2xl shadow-sm mx-auto" />;
+}
+
 // A single saved form entry (immutable)
-function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCorrection: (entry: any) => void; dek: CryptoKey | null; accessLevel: string }) {
+function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCorrection: (entry: any) => void; dek: Uint8Array | null; accessLevel: string }) {
   const [showCorrection, setShowCorrection] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
   const [saving, setSaving] = useState(false);
@@ -65,9 +90,9 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
       <div className="flex items-start justify-between gap-4 p-4 bg-white">
         <div className="flex-1">
           {decryptionError ? (
-            <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14}/> Decryption Failed. Check Key.</div>
+            <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14}/> Failed to load secure data. Please log in again.</div>
           ) : isDecrypting ? (
-            <div className="text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Decrypting Secure Data...</div>
+            <div className="text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading Secure Data...</div>
           ) : fields.length === 0 ? (
             <div className="text-gray-400 text-sm italic">No data entries.</div>
           ) : (
@@ -130,7 +155,7 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
 }
 
 // Summary Tab to display aggregated information across allowed departments
-function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: any; visibleTabs: string[]; staffProfile: any; dek: CryptoKey | null }) {
+function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: any; visibleTabs: string[]; staffProfile: any; dek: Uint8Array | null }) {
   const tabsToAggregate = visibleTabs.filter(t => t !== "basic_info" && t !== "summary" && t !== "audit_log");
   
   const allEntries: { tabKey: string; entry: any }[] = [];
@@ -175,7 +200,7 @@ function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: 
 }
 
 // Dynamic tab form
-function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate }: { patient: any; tabKey: string; staffProfile: any; dek: CryptoKey | null; accessLevel: string; onUpdate: () => void }) {
+function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate }: { patient: any; tabKey: string; staffProfile: any; dek: Uint8Array | null; accessLevel: string; onUpdate: () => void }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [formFields, setFormFields] = useState([{ label: "", value: "" }]);
   const [saving, setSaving] = useState(false);
@@ -224,13 +249,21 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
       [`tabs.${tabKey}`]: arrayUnion(newEntry),
     });
 
-    await addDoc(collection(db, "audit_logs"), {
-      hospitalSlug: patient.hospitalSlug,
-      actorName: staffProfile.name,
-      actorRole: staffProfile.role,
-      action: `Added encrypted entry to ${tabKey} tab for patient ${patient.mednorisId}`,
-      timestamp: serverTimestamp(),
-    });
+    const tabStatMap: Record<string, DailyStatEvent> = {
+      consultation: "consultations",
+      lab: "labEntries",
+      pharmacy: "pharmacyEntries",
+    };
+    const statEvent = tabStatMap[tabKey];
+
+    await Promise.all([
+      writeAuditLog(patient.hospitalSlug, {
+        actorName: staffProfile.name,
+        actorRole: staffProfile.role,
+        action: `Added clinical entry to ${tabKey} tab for patient ${patient.mednorisId}`,
+      }),
+      ...(statEvent ? [trackDailyEvent(patient.hospitalSlug, statEvent)] : []),
+    ]);
 
     setFormFields([{ label: "", value: "" }]);
     setShowAddForm(false);
@@ -270,12 +303,10 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
       [`tabs.${tabKey}`]: updatedEntries,
     });
     
-    await addDoc(collection(db, "audit_logs"), {
-      hospitalSlug: patient.hospitalSlug,
+    await writeAuditLog(patient.hospitalSlug, {
       actorName: staffProfile.name,
       actorRole: staffProfile.role,
       action: `Appended correction to ${tabKey} tab for patient ${patient.mednorisId}`,
-      timestamp: serverTimestamp(),
     });
     onUpdate();
   };
@@ -367,7 +398,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
             <div className="flex gap-2">
               <button onClick={saveEntry} disabled={saving || !dek} className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:bg-brand-secondary disabled:opacity-70">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
-                Encrypt & Save Entry
+                Save Secure Entry
               </button>
               <button onClick={() => { setShowAddForm(false); setFormFields([{ label: "", value: "" }]); }} className="px-4 py-2 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-100">
                 Cancel
@@ -505,7 +536,7 @@ export default function StaffPatientProfilePage() {
       </Link>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6 flex flex-wrap items-center gap-6 relative overflow-hidden">
-        {/* Subtle lock watermark to remind them it's encrypted */}
+        {/* Subtle lock watermark to remind them it's secure */}
         <Lock size={120} className="absolute -right-10 -bottom-10 text-gray-50 opacity-50 pointer-events-none" />
         
         <div className="w-16 h-16 bg-purple-50 text-purple-600 font-black text-2xl rounded-full flex items-center justify-center shrink-0 z-10 overflow-hidden border border-purple-100">
@@ -586,8 +617,8 @@ export default function StaffPatientProfilePage() {
           {!dek ? (
             <div className="text-center py-10 text-red-500">
               <Lock size={36} className="mx-auto mb-2 opacity-50" />
-              <p className="text-sm font-bold">Encryption Key Missing</p>
-              <p className="text-xs">Your browser's memory was cleared or you are not logged in properly. Please log in again to decrypt data.</p>
+              <p className="text-sm font-bold">Secure Session Expired</p>
+              <p className="text-xs">Your secure session was closed. Please log in again to view clinical records.</p>
             </div>
           ) : activeTab === "basic_info" ? (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -597,7 +628,7 @@ export default function StaffPatientProfilePage() {
               </div>
               {!patientDetails ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-gray-400 text-sm">
-                  <Loader2 size={16} className="animate-spin" /> Decrypting patient record...
+                  <Loader2 size={16} className="animate-spin" /> Loading patient record...
                 </div>
               ) : (
                 <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -607,7 +638,7 @@ export default function StaffPatientProfilePage() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Mednoris ID</p>
-                    <p className="text-sm font-semibold text-gray-900">{patient.mednorisId}</p>
+                    <p className="text-sm font-semibold text-gray-900">{patientDetails.mednorisId || patient.mednorisId}</p>
                   </div>
                   <div>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date of Birth</p>
@@ -625,6 +656,53 @@ export default function StaffPatientProfilePage() {
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Home Address</p>
                     <p className="text-sm font-semibold text-gray-900">{patientDetails.address || "—"}</p>
                   </div>
+                </div>
+              )}
+
+              {/* QR Code and Print Button */}
+              {staffProfile?.fullAccess && patientDetails && (
+                <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col items-center">
+                  <style>{`
+                    @media print {
+                      @page { margin: 0; }
+                      body * {
+                        visibility: hidden;
+                      }
+                      #patient-qr-card, #patient-qr-card * {
+                        visibility: visible;
+                      }
+                      #patient-qr-card {
+                        position: fixed;
+                        left: 50%;
+                        top: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 100%;
+                        max-width: 400px;
+                        background: white !important;
+                        border: none !important;
+                        margin: 0;
+                      }
+                    }
+                  `}</style>
+                  
+                  <div className="inline-block bg-white border border-gray-200 rounded-3xl p-6 space-y-4 mb-4" id="patient-qr-card">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Mednoris ID Card</p>
+                    <div className="flex justify-center">
+                      <QRCodeCanvas value={`${window.location.origin}/patient/${patientDetails.mednorisId || patient.mednorisId}`} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-black text-gray-900">{patientDetails.firstName} {patientDetails.lastName}</p>
+                      <code className="text-brand-primary font-bold text-sm">{patientDetails.mednorisId || patient.mednorisId}</code>
+                      <p className="text-xs text-gray-400 mt-1">{patientDetails.hospitalName || patient.hospitalName || "Hospital"}</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary text-sm transition-colors print:hidden"
+                  >
+                    <Printer size={16} /> Print ID Card
+                  </button>
                 </div>
               )}
             </div>

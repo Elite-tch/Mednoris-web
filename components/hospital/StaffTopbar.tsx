@@ -7,6 +7,8 @@ import { signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { LogOut, Building2, RotateCw, Menu } from "lucide-react";
+import { useCrypto } from "@/contexts/CryptoContext";
+import { decryptData } from "@/lib/crypto";
 
 export default function StaffTopbar() {
   const params = useParams();
@@ -15,6 +17,7 @@ export default function StaffTopbar() {
   const [hospital, setHospital] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const { dek } = useCrypto();
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -33,10 +36,23 @@ export default function StaffTopbar() {
         getDoc(doc(db, "hospital_staff", user.uid)),
       ]);
       if (hospSnap.exists()) setHospital(hospSnap.data());
-      if (staffSnap.exists()) setStaffProfile(staffSnap.data());
+      if (staffSnap.exists()) {
+        const data = staffSnap.data();
+        let decryptedProfile: any = {};
+        if (data.encryptedProfile && dek) {
+          try {
+            decryptedProfile = await decryptData(data.encryptedProfile.ciphertext, data.encryptedProfile.iv, dek);
+          } catch (e) {
+            console.error("Failed to decrypt staff profile", e);
+          }
+        } else {
+          decryptedProfile = { name: data.name, email: data.email };
+        }
+        setStaffProfile({ ...data, decryptedProfile });
+      }
     });
     return () => unsubscribe();
-  }, [slug]);
+  }, [slug, dek]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -48,7 +64,7 @@ export default function StaffTopbar() {
     <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 md:px-6 h-16 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-3">
         <button 
-          onClick={() => window.dispatchEvent(new Event("toggleStaffSidebar"))}
+          onClick={() => window.dispatchEvent(new CustomEvent("toggleStaffSidebar"))}
           className="md:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <Menu size={24} />
@@ -65,11 +81,11 @@ export default function StaffTopbar() {
       {staffProfile && (
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold text-gray-900">{staffProfile?.name}</p>
+            <p className="text-sm font-bold text-gray-900">{staffProfile?.decryptedProfile?.name || staffProfile?.name || "Staff"}</p>
             <p className="text-xs text-gray-400 capitalize">{staffProfile?.role?.replace("_", " ")}</p>
           </div>
           <div className="w-9 h-9 bg-brand-primary/10 text-brand-primary font-bold rounded-full flex items-center justify-center text-sm">
-            {staffProfile?.name?.charAt(0) || "?"}
+            {(staffProfile?.decryptedProfile?.name || staffProfile?.name || "?").charAt(0)}
           </div>
           <button
             onClick={handleRefresh}

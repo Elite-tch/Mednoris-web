@@ -12,7 +12,9 @@ import { canRegisterPatient } from "@/lib/rbac";
 import { ShieldAlert } from "lucide-react";
 import WebcamCapture from "@/components/hospital/WebcamCapture";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { encryptData } from "@/lib/crypto";
+import { encryptData, hashData } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
+import { trackDailyEvent } from "@/lib/stats";
 
 function generateMednorisId(slug: string) {
   const prefix = slug.substring(0, 3).toUpperCase();
@@ -86,9 +88,16 @@ export default function StaffAddPatientPage() {
     try {
       const mednorisId = generateMednorisId(slug);
 
-      // Encrypt all sensitive patient fields using the hospital DEK
+      // 1. Hash the Mednoris ID for searchable index
+      const mednorisIdHash = await hashData(mednorisId);
+
+      // 2. Encrypt all PII and sensitive identifiers
       const encryptedDetails = await encryptData(
         {
+          mednorisId,
+          hospitalName: hospital?.name,
+          createdBy: staffProfile?.name || "Staff",
+          createdByRole: staffProfile?.role || "staff",
           firstName: form.firstName,
           lastName: form.lastName,
           dob: form.dob,
@@ -105,14 +114,11 @@ export default function StaffAddPatientPage() {
         : null;
 
       const docRef = await addDoc(collection(db, "hospital_patients"), {
-        // Unencrypted fields used for search/display of non-PII data
-        mednorisId,
+        // Unencrypted fields used for multi-tenant isolation and deterministic search
+        mednorisIdHash,
         hospitalSlug: slug,
-        hospitalName: hospital?.name,
-        createdBy: staffProfile?.name || "Staff",
-        createdByRole: staffProfile?.role || "staff",
         createdAt: serverTimestamp(),
-        // Encrypted PII
+        // Encrypted PII (including the raw mednorisId)
         encryptedDetails,
         encryptedHeadshot,
         // Clinical tabs
@@ -125,14 +131,15 @@ export default function StaffAddPatientPage() {
         },
       });
 
-      // Audit log uses only non-PII (ID, not name)
-      await addDoc(collection(db, "audit_logs"), {
-        hospitalSlug: slug,
-        actorName: staffProfile?.name || "Staff",
-        actorRole: staffProfile?.role || "staff",
-        action: `Registered new patient with ID: ${mednorisId}`,
-        timestamp: serverTimestamp(),
-      });
+      // Audit log uses a generic message + daily stat
+      await Promise.all([
+        writeAuditLog(slug, {
+          actorName: staffProfile?.name || "Staff",
+          actorRole: staffProfile?.role || "staff",
+          action: `Registered a new patient`,
+        }),
+        trackDailyEvent(slug, "patientsRegistered"),
+      ]);
 
       setNewPatientId(docRef.id);
       setNewMednorisId(mednorisId);
@@ -190,21 +197,42 @@ export default function StaffAddPatientPage() {
       >
         {success && newMednorisId ? (
           <div className="text-center py-4 space-y-6">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-              <ShieldCheck size={32} />
-            </div>
+            
             <div>
-              <h2 className="text-xl font-black text-gray-900">Patient Registered &amp; Encrypted!</h2>
-              <p className="text-gray-500 text-sm mt-1">
+              <h2 className="text-xl font-black text-gray-900 print:hidden">Patient Registered &amp; Encrypted!</h2>
+              <p className="text-gray-500 text-sm mt-1 print:hidden">
                 {form.firstName} {form.lastName}'s record has been securely saved. Print or save the QR card below.
               </p>
             </div>
+
+            <style>{`
+              @media print {
+                @page { margin: 0; }
+                body * {
+                  visibility: hidden;
+                }
+                #patient-qr-card, #patient-qr-card * {
+                  visibility: visible;
+                }
+                #patient-qr-card {
+                  position: fixed;
+                  left: 50%;
+                  top: 50%;
+                  transform: translate(-50%, -50%);
+                  width: 100%;
+                  max-width: 400px;
+                  background: white !important;
+                  border: none !important;
+                  margin: 0;
+                }
+              }
+            `}</style>
 
             {/* QR Code Card */}
             <div className="inline-block bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4" id="patient-qr-card">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mednoris ID Card</p>
               <div className="flex justify-center">
-                <QRCodeCanvas value={newMednorisId} />
+                <QRCodeCanvas value={`${window.location.origin}/patient/${newMednorisId}`} />
               </div>
               <div className="text-center">
                 <p className="text-lg font-black text-gray-900">{form.firstName} {form.lastName}</p>
@@ -306,10 +334,7 @@ export default function StaffAddPatientPage() {
             {error && <p className="text-sm text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>}
 
             <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <Lock size={13} />
-                <span>All details are encrypted with AES-256-GCM before saving</span>
-              </div>
+              
               <button type="submit" disabled={loading || !dek} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors disabled:opacity-70 flex items-center gap-2">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
                 {loading ? "Encrypting & Saving..." : "Register Patient"}

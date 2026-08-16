@@ -12,40 +12,7 @@ import { canRegisterPatient } from "@/lib/rbac";
 import { useCrypto } from "@/contexts/CryptoContext";
 import { decryptData } from "@/lib/crypto";
 
-// Each row decrypts its own patient data independently
-function PatientRow({ patient, dek, slug, i }: { patient: any; dek: CryptoKey | null; slug: string; i: number }) {
-  const [details, setDetails] = useState<any>(null);
-
-  useEffect(() => {
-    async function decrypt() {
-      if (!dek) {
-        // Plaintext fallback for legacy records
-        setDetails({
-          firstName: patient.firstName || "",
-          lastName: patient.lastName || "",
-          gender: patient.gender || "",
-          dob: patient.dob || "",
-        });
-        return;
-      }
-      try {
-        if (patient.encryptedDetails) {
-          const d = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
-          setDetails(d);
-        } else {
-          setDetails({
-            firstName: patient.firstName || "",
-            lastName: patient.lastName || "",
-            gender: patient.gender || "",
-            dob: patient.dob || "",
-          });
-        }
-      } catch {
-        setDetails(null); // show lock icon on decryption failure
-      }
-    }
-    decrypt();
-  }, [patient, dek]);
+function PatientRow({ patient, details, i, slug }: { patient: any; details: any; i: number; slug: string }) {
 
   const initials = details?.firstName?.charAt(0) || "?";
   const displayName = details ? `${details.firstName} ${details.lastName}`.trim() : null;
@@ -81,14 +48,14 @@ function PatientRow({ patient, dek, slug, i }: { patient: any; dek: CryptoKey | 
       </td>
       <td className="px-6 py-4 hidden sm:table-cell">
         <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-1 rounded-lg">
-          {patient.mednorisId}
+          {details?.mednorisId || patient.mednorisId}
         </code>
       </td>
       <td className="px-6 py-4 text-sm text-gray-500 hidden md:table-cell">
         {details?.dob || "—"}
       </td>
       <td className="px-6 py-4 hidden md:table-cell">
-        <span className="text-xs font-medium text-gray-600">{patient.createdBy}</span>
+        <span className="text-xs font-medium text-gray-600">{details?.createdBy || patient.createdBy}</span>
       </td>
       <td className="px-6 py-4 text-right">
         <Link
@@ -131,17 +98,42 @@ export default function StaffPatientsPage() {
     setLoading(true);
     const q = query(collection(db, "hospital_patients"), where("hospitalSlug", "==", slug));
     const snap = await getDocs(q);
-    setPatients(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    
+    const rawPatients = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    const decryptedPatients = await Promise.all(rawPatients.map(async (p: any) => {
+      let details = null;
+      if (p.encryptedDetails && dek) {
+        try {
+          details = await decryptData(p.encryptedDetails.ciphertext, p.encryptedDetails.iv, dek);
+        } catch(e) {}
+      } else {
+        // Fallback for legacy
+        details = { 
+          firstName: p.firstName, 
+          lastName: p.lastName, 
+          gender: p.gender, 
+          dob: p.dob,
+          mednorisId: p.mednorisId,
+          createdBy: p.createdBy
+        };
+      }
+      return { ...p, details };
+    }));
+    
+    setPatients(decryptedPatients);
     setLoading(false);
   };
 
-  useEffect(() => { fetchPatients(); }, [slug]);
+  useEffect(() => { if (dek) fetchPatients(); }, [slug, dek]);
 
-  // Search only by Mednoris ID (names are encrypted — cannot search plaintext)
-  const filtered = patients.filter(p =>
-    search === "" ||
-    p.mednorisId?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = patients.filter(p => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    const name = `${p.details?.firstName || ''} ${p.details?.lastName || ''}`.toLowerCase();
+    const id = (p.details?.mednorisId || p.mednorisId || "").toLowerCase();
+    return name.includes(term) || id.includes(term);
+  });
 
   return (
     <div>
@@ -170,15 +162,6 @@ export default function StaffPatientsPage() {
         />
       </div>
 
-      {!dek && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 mb-6">
-          <Lock size={16} className="text-amber-500 shrink-0" />
-          <p className="text-sm text-amber-700 font-medium">
-            Encryption key not loaded — patient names will not be visible. Please log out and log back in.
-          </p>
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-brand-primary" size={32} /></div>
       ) : (
@@ -201,7 +184,7 @@ export default function StaffPatientsPage() {
               </thead>
               <tbody>
                 {filtered.map((p, i) => (
-                  <PatientRow key={p.id} patient={p} dek={dek} slug={slug} i={i} />
+                  <PatientRow key={p.id} patient={p} details={p.details} slug={slug} i={i} />
                 ))}
               </tbody>
             </table>

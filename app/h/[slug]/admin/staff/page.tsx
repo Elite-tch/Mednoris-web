@@ -9,7 +9,8 @@ import { db, auth, getSecondaryAuth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Trash2, ShieldCheck, User, Copy, Check, X, UserPlus } from "lucide-react";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64 } from "@/lib/crypto";
+import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64, encryptData, decryptData } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
 
 export default function StaffPage() {
   const params = useParams();
@@ -57,7 +58,21 @@ export default function StaffPage() {
     try {
       const qStaff = query(collection(db, "hospital_staff"), where("hospitalSlug", "==", slug));
       const snapStaff = await getDocs(qStaff);
-      setStaffList(snapStaff.docs.map(d => ({ id: d.id, ...d.data() })));
+      
+      const rawStaff = snapStaff.docs.map(d => ({ id: d.id, ...d.data() }));
+      const decryptedStaff = await Promise.all(rawStaff.map(async (s: any) => {
+        let profile = { name: s.name, email: s.email, role: s.role };
+        if (s.encryptedProfile && dek) {
+          try {
+            profile = await decryptData(s.encryptedProfile.ciphertext, s.encryptedProfile.iv, dek);
+          } catch (e) {
+            console.error("Failed decrypting staff", e);
+          }
+        }
+        return { ...s, decryptedProfile: profile };
+      }));
+      
+      setStaffList(decryptedStaff);
 
       const snapSlots = await getDocs(collection(db, `hospitals/${slug}/slots`));
       setSlots(snapSlots.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -68,7 +83,7 @@ export default function StaffPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [slug]);
+  useEffect(() => { if (dek) fetchData(); }, [slug, dek]);
 
   // Reset a slot: delete staff crypto keys + mark slot as unassigned
   const handleResetSlot = async (staffId: string, staffName: string, slotId: string) => {
@@ -89,12 +104,10 @@ export default function StaffPage() {
       });
 
       // 3. Audit log
-      await setDoc(doc(collection(db, "audit_logs")), {
-        hospitalSlug: slug,
+      await writeAuditLog(slug, {
         actorName: staffProfile?.name,
         actorRole: staffProfile?.role || "owner",
-        action: `Removed staff member: ${staffName} — slot reset to unassigned`,
-        timestamp: serverTimestamp(),
+        action: `Removed a staff member — slot reset to unassigned`,
       });
 
       fetchData();
@@ -139,37 +152,53 @@ export default function StaffPage() {
       await updateProfile(user, { displayName: newName });
       await secondaryAuth.signOut();
 
+      // 2.5 Encrypt the profile PII
+      const encryptedProfile = await encryptData(
+        {
+          name: newName,
+          email,
+          role: assignSlot.role
+        },
+        dek
+      );
+
       // 3. Save Staff Record
       await setDoc(doc(db, "hospital_staff", user.uid), {
         hospitalSlug: slug,
-        hospitalName: hospital?.name,
         role: assignSlot.role,
         fullAccess: assignSlot.fullAccess || false,
-        name: newName,
-        email, 
         username: usernameToUse,
         active: true,
         salt: arrayBufferToBase64(salt),
         wrappedDEK,
         wrapIV,
         createdAt: serverTimestamp(),
+        encryptedProfile,
       });
 
-      // 4. Update Slot to Filled
+      // 4. Update Slot
       await updateDoc(doc(db, `hospitals/${slug}/slots`, assignSlot.id), {
         isFilled: true,
-        assignedToUid: user.uid
+        assignedToUid: user.uid,
       });
 
+      // 5. Audit Log
+      await writeAuditLog(slug, {
+        actorName: staffProfile?.name || "Owner",
+        actorRole: staffProfile?.role || "owner",
+        action: `Filled a staff slot with a new member`,
+      });
+      
+      setAssignSlot(null);
+      setNewPassword("");
+      setNewName("");
+      
       setGeneratedUser({
         username: usernameToUse,
         password: newPassword,
         link: `${window.location.origin}/h/${slug}/staff`
       });
       
-      setAssignSlot(null);
-      setNewPassword("");
-      setNewName("");
       fetchData();
     } catch (err: any) {
       console.error(err);

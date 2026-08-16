@@ -11,7 +11,8 @@ import { ArrowLeft, Loader2, User, Lock, Plus, ShieldCheck, Copy, Check, X, Shie
 import Link from "next/link";
 
 import { useCrypto } from "@/contexts/CryptoContext";
-import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64 } from "@/lib/crypto";
+import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64, encryptData } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
 
 const ROLES = ["receptionist", "nurse", "doctor", "scientist", "pharmacist", "lab_technician"];
 
@@ -98,13 +99,20 @@ export default function AddStaffPage() {
       // Immediately sign out the newly created user from the secondary app to clean up state
       await secondaryAuth.signOut();
 
-      // 3. Save to Firestore
+      // 3. Encrypt the profile PII
+      const encryptedProfile = await encryptData(
+        {
+          name,
+          email,
+          role: finalRole, // Store full string in case it's custom
+        },
+        dek
+      );
+
+      // 4. Save to Firestore
       await setDoc(doc(db, "hospital_staff", user.uid), {
         hospitalSlug: slug,
-        hospitalName: hospital?.name,
-        role: finalRole,
-        name,
-        email, 
+        role: ROLES.includes(finalRole) ? finalRole : "custom", // Base role for access rules
         username,
         fullAccess,
         active: true,
@@ -112,15 +120,14 @@ export default function AddStaffPage() {
         wrappedDEK,
         wrapIV,
         createdAt: serverTimestamp(),
+        encryptedProfile,
       });
 
       // Audit log
-      await setDoc(doc(collection(db, "audit_logs")), {
-        hospitalSlug: slug,
+      await writeAuditLog(slug, {
         actorName: actorProfile?.name || "Admin",
         actorRole: "admin",
-        action: `Added new staff member: ${name} (${finalRole.replace(/_/g, " ")})`,
-        timestamp: serverTimestamp(),
+        action: `Added a new staff member`,
       });
 
       const accessLink = `${window.location.origin}/h/${slug}/staff`;

@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { writeAuditLog } from "@/lib/audit";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Loader2, Save, ShieldCheck, ShieldAlert, Check } from "lucide-react";
 import Link from "next/link";
+import { useCrypto } from "@/contexts/CryptoContext";
+import { encryptData, decryptData } from "@/lib/crypto";
 
 const ROLES = ["receptionist", "nurse", "doctor", "scientist", "pharmacist", "lab_technician"];
 
@@ -29,6 +32,7 @@ export default function EditStaffPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { dek } = useCrypto();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -42,16 +46,31 @@ export default function EditStaffPage() {
       
       if (sTarget.exists()) {
         const data = sTarget.data();
-        setStaffData(data);
+        let decryptedProfile: any = {};
+        
+        if (data.encryptedProfile && dek) {
+          try {
+            decryptedProfile = await decryptData(data.encryptedProfile.ciphertext, data.encryptedProfile.iv, dek);
+          } catch (e) {
+            console.error("Failed to decrypt staff profile", e);
+          }
+        } else {
+          // Fallback for legacy unencrypted data during transition
+          decryptedProfile = { name: data.name, email: data.email, role: data.role };
+        }
+
+        setStaffData({ ...data, decryptedProfile });
         setFullAccess(!!data.fullAccess);
         
-        if (ROLES.includes(data.role)) {
-          setRole(data.role);
+        const rawRole = decryptedProfile.role || data.role;
+        
+        if (ROLES.includes(rawRole)) {
+          setRole(rawRole);
           setIsCustomRole(false);
         } else {
           setRole("others");
           setIsCustomRole(true);
-          setCustomRoleInput(data.role.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()));
+          setCustomRoleInput(rawRole.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()));
         }
       }
       setLoading(false);
@@ -73,18 +92,27 @@ export default function EditStaffPage() {
     setSuccess(false);
 
     try {
+      // Re-encrypt the profile with the new role
+      const encryptedProfile = await encryptData(
+        {
+          name: staffData.decryptedProfile?.name,
+          email: staffData.decryptedProfile?.email,
+          role: finalRole
+        },
+        dek!
+      );
+
       await updateDoc(doc(db, "hospital_staff", staffId), {
-        role: finalRole,
-        fullAccess
+        role: ROLES.includes(finalRole) ? finalRole : "custom",
+        fullAccess,
+        encryptedProfile
       });
 
       // Audit log
-      await setDoc(doc(collection(db, "audit_logs")), {
-        hospitalSlug: slug,
+      await writeAuditLog(slug, {
         actorName: actorProfile?.name || "Owner",
         actorRole: "owner",
-        action: `Owner changed ${staffData?.name}'s access. Role: ${finalRole.replace(/_/g, " ")}, Full Access: ${fullAccess}`,
-        timestamp: serverTimestamp(),
+        action: `Changed staff access`,
       });
 
       setSuccess(true);
@@ -134,7 +162,7 @@ export default function EditStaffPage() {
       >
         <div className="mb-8 pb-6 border-b border-gray-100">
           <h2 className="text-2xl font-black text-gray-900 mb-1">Edit Staff Access</h2>
-          <p className="text-gray-500 text-sm">Managing access for <span className="font-bold text-gray-900">{staffData.name}</span> ({staffData.email})</p>
+          <p className="text-gray-500 text-sm">Managing access for <span className="font-bold text-gray-900">{staffData.decryptedProfile?.name || "Staff Member"}</span></p>
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">

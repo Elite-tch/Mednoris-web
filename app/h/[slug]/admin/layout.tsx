@@ -10,6 +10,7 @@ import HospitalSidebar from "@/components/hospital/HospitalSidebar";
 import HospitalTopbar from "@/components/hospital/HospitalTopbar";
 import OnboardingModal from "@/components/hospital/OnboardingModal";
 import AdminLoginModal from "@/components/hospital/AdminLoginModal";
+import { useCrypto } from "@/contexts/CryptoContext";
 
 function StaffBlockedModal({ slug }: { slug: string }) {
   const handleSwitch = async () => {
@@ -52,12 +53,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const { dek } = useCrypto();
 
   const [loading, setLoading] = useState(true);
   const [hospital, setHospital] = useState<any>(null);
   const [showLogin, setShowLogin] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [staffBlocked, setStaffBlocked] = useState(false);
+  const [userAuthenticated, setUserAuthenticated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +114,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         setStaffBlocked(false);
         setShowLogin(false);
         setShowOnboarding(false);
+        setUserAuthenticated(true);
         setLoading(false);
       });
     }
@@ -123,6 +127,9 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     };
   }, [slug, router]);
 
+  // If user is authenticated but DEK was lost (e.g. page refresh), show login again
+  const needsRelogin = userAuthenticated && !dek && !showLogin;
+
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#f8f7fb]">
@@ -133,7 +140,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f7fb]">
-      {showLogin && (
+      {(showLogin || needsRelogin) && (
         <AdminLoginModal slug={slug} hospitalName={hospital?.name} />
       )}
       

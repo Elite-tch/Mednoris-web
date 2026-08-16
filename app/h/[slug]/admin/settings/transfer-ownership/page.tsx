@@ -10,7 +10,8 @@ import { ArrowLeft, Loader2, Save, ShieldCheck, ShieldAlert, Check, User, Mail, 
 import Link from "next/link";
 
 import { useCrypto } from "@/contexts/CryptoContext";
-import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64 } from "@/lib/crypto";
+import { deriveKEK, wrapKey, generateRandomBytes, arrayBufferToBase64, encryptData, decryptData } from "@/lib/crypto";
+import { writeAuditLog } from "@/lib/audit";
 
 export default function TransferOwnershipPage() {
   const params = useParams();
@@ -37,11 +38,24 @@ export default function TransferOwnershipPage() {
         getDoc(doc(db, "hospital_staff", user.uid)),
       ]);
       if (h.exists()) setHospital(h.data());
-      if (s.exists()) setActorProfile({ id: s.id, ...s.data() });
+      if (s.exists()) {
+        const data = s.data();
+        let decryptedProfile: any = {};
+        if (data.encryptedProfile && dek) {
+          try {
+            decryptedProfile = await decryptData(data.encryptedProfile.ciphertext, data.encryptedProfile.iv, dek);
+          } catch (e) {
+            console.error("Failed to decrypt staff profile", e);
+          }
+        } else {
+          decryptedProfile = { name: data.name, email: data.email };
+        }
+        setActorProfile({ id: s.id, ...data, decryptedProfile });
+      }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [slug]);
+  }, [slug, dek]);
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,13 +102,20 @@ export default function TransferOwnershipPage() {
 
       const newUsername = email.split("@")[0] + Math.floor(100 + Math.random() * 900);
 
-      // 3. Save new owner to Firestore
+      // 3. Encrypt the profile PII for the new owner
+      const encryptedProfile = await encryptData(
+        {
+          name,
+          email,
+          role: "owner"
+        },
+        dek
+      );
+
+      // 4. Save new owner to Firestore
       await setDoc(doc(db, "hospital_staff", newUser.uid), {
         hospitalSlug: slug,
-        hospitalName: hospital?.name,
         role: "owner",
-        name,
-        email, 
         username: newUsername,
         fullAccess: true,
         active: true,
@@ -105,6 +126,7 @@ export default function TransferOwnershipPage() {
         recoveryWrappedDEK,
         recoveryWrapIV,
         createdAt: serverTimestamp(),
+        encryptedProfile,
       });
 
       // 4. Update Hospital Contact Info (optional but good practice)
@@ -114,12 +136,10 @@ export default function TransferOwnershipPage() {
       });
 
       // 5. Log the transfer
-      await setDoc(doc(collection(db, "audit_logs")), {
-        hospitalSlug: slug,
-        actorName: actorProfile?.name || "Owner",
+      await writeAuditLog(slug, {
+        actorName: actorProfile?.decryptedProfile?.name || "Owner",
         actorRole: "owner",
-        action: `Ownership transferred from ${actorProfile?.name} to ${name}`,
-        timestamp: serverTimestamp(),
+        action: `Ownership transferred`,
       });
 
       // 6. Revoke current owner's access
