@@ -10,6 +10,7 @@ import HospitalSidebar from "@/components/hospital/HospitalSidebar";
 import HospitalTopbar from "@/components/hospital/HospitalTopbar";
 import OnboardingModal from "@/components/hospital/OnboardingModal";
 import AdminLoginModal from "@/components/hospital/AdminLoginModal";
+import FloatingFeedbackWidget from "@/components/feedback/FloatingFeedbackWidget";
 import { useCrypto } from "@/contexts/CryptoContext";
 
 function StaffBlockedModal({ slug }: { slug: string }) {
@@ -163,6 +164,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               {children}
             </main>
           </div>
+          {!needsRelogin && <FloatingFeedbackWidget />}
         </>
       )}
     </div>

@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock, Printer } from "lucide-react";
 import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { encryptData, decryptData } from "@/lib/crypto";
+import { encryptData, decryptData, unwrapKey } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/audit";
 import { trackDailyEvent, DailyStatEvent } from "@/lib/stats";
 import { getVisibleSections, getAccessLevel, RecordSection } from "@/lib/rbac";
@@ -488,7 +488,11 @@ export default function StaffPatientProfilePage() {
       }
       try {
         if (patient.encryptedDetails) {
-          const details = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
+          let activeDEK = dek;
+          if (patient.hospitalWrappedDEK && patient.hospitalWrapIV) {
+            activeDEK = await unwrapKey(patient.hospitalWrappedDEK, patient.hospitalWrapIV, dek);
+          }
+          const details = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, activeDEK);
           setPatientDetails(details);
         } else {
           // Legacy plaintext fallback

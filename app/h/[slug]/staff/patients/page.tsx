@@ -10,7 +10,7 @@ import { Plus, Loader2, Search, User, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { canRegisterPatient } from "@/lib/rbac";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { decryptData } from "@/lib/crypto";
+import { decryptData, unwrapKey } from "@/lib/crypto";
 
 function PatientRow({ patient, details, i, slug }: { patient: any; details: any; i: number; slug: string }) {
 
@@ -97,9 +97,13 @@ export default function StaffPatientsPage() {
       let details = null;
       if (p.encryptedDetails && dek) {
         try {
-          details = await decryptData(p.encryptedDetails.ciphertext, p.encryptedDetails.iv, dek);
+          let activeDEK = dek;
+          if (p.hospitalWrappedDEK && p.hospitalWrapIV) {
+            activeDEK = await unwrapKey(p.hospitalWrappedDEK, p.hospitalWrapIV, dek);
+          }
+          details = await decryptData(p.encryptedDetails.ciphertext, p.encryptedDetails.iv, activeDEK);
         } catch(e) {}
-      } else {
+      } else if (!p.encryptedDetails) {
         details = { 
           firstName: p.firstName, 
           lastName: p.lastName, 

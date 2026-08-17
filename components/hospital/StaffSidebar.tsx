@@ -27,7 +27,6 @@ export default function StaffSidebar() {
   const navItems = [
     { label: "Overview", href: base, icon: LayoutDashboard, exact: true },
     { label: "Patients", href: `${base}/patients`, icon: Users, exact: false },
-    { label: "Scan Patient", href: `${base}/patients/scan`, icon: QrCode, exact: false },
     { label: "Register Patient", href: `${base}/patients/add`, icon: UserPlus, exact: false },
   ];
 

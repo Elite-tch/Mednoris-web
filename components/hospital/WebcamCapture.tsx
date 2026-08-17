@@ -7,9 +7,11 @@ import { motion, AnimatePresence } from "framer-motion";
 interface WebcamCaptureProps {
   onCapture: (base64Image: string) => void;
   onClose: () => void;
+  facingMode?: "user" | "environment";
+  title?: string;
 }
 
-export default function WebcamCapture({ onCapture, onClose }: WebcamCaptureProps) {
+export default function WebcamCapture({ onCapture, onClose, facingMode = "user", title = "Take Headshot" }: WebcamCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +21,7 @@ export default function WebcamCapture({ onCapture, onClose }: WebcamCaptureProps
     setError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: { facingMode },
       });
       setStream(mediaStream);
       if (videoRef.current) {
@@ -90,7 +92,7 @@ export default function WebcamCapture({ onCapture, onClose }: WebcamCaptureProps
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
-            <Camera size={18} className="text-brand-primary" /> Take Headshot
+            <Camera size={18} className="text-brand-primary" /> {title}
           </h3>
           <button onClick={handleClose} type="button" className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors">
             <X size={20} />

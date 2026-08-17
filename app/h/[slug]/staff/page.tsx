@@ -8,7 +8,7 @@ import { db, auth } from "@/lib/firebase";
 import { Users, Activity, Calendar, Loader2, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { decryptData } from "@/lib/crypto";
+import { decryptData, unwrapKey } from "@/lib/crypto";
 
 function RecentPatientRow({ patient, dek, slug, i }: { patient: any; dek: Uint8Array | null; slug: string; i: number }) {
   const [details, setDetails] = useState<any>(null);
@@ -25,7 +25,11 @@ function RecentPatientRow({ patient, dek, slug, i }: { patient: any; dek: Uint8A
       }
       try {
         if (patient.encryptedDetails) {
-          const d = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
+          let activeDEK = dek;
+          if (patient.hospitalWrappedDEK && patient.hospitalWrapIV) {
+            activeDEK = await unwrapKey(patient.hospitalWrappedDEK, patient.hospitalWrapIV, dek);
+          }
+          const d = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, activeDEK);
           setDetails(d);
         } else {
           setDetails({

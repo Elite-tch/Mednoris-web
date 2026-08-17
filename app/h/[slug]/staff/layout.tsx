@@ -9,6 +9,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import StaffSidebar from "@/components/hospital/StaffSidebar";
 import StaffTopbar from "@/components/hospital/StaffTopbar";
 import StaffLoginModal from "@/components/hospital/StaffLoginModal";
+import FloatingFeedbackWidget from "@/components/feedback/FloatingFeedbackWidget";
 import { useCrypto } from "@/contexts/CryptoContext";
 
 /** Shown when a hospital admin tries to access the staff-only dashboard. */
@@ -165,6 +166,7 @@ export default function StaffDashboardLayout({ children }: { children: React.Rea
               {children}
             </main>
           </div>
+          {!needsRelogin && <FloatingFeedbackWidget />}
         </>
       )}
     </div>

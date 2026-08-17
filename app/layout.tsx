@@ -5,7 +5,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import AuthGuard from "@/components/AuthGuard";
 import ConditionalShell from "@/components/ConditionalShell";
-
+import FloatingFeedbackWidget from "@/components/feedback/FloatingFeedbackWidget";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -135,6 +135,7 @@ export default function RootLayout({
           <AuthGuard>
             <ConditionalShell>
               {children}
+              <FloatingFeedbackWidget/>
             </ConditionalShell>
           </AuthGuard>
         </Providers>

@@ -12,7 +12,7 @@ import { canRegisterPatient } from "@/lib/rbac";
 import { ShieldAlert } from "lucide-react";
 import WebcamCapture from "@/components/hospital/WebcamCapture";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { encryptData, hashData } from "@/lib/crypto";
+import { encryptData, hashData, generateDEK, wrapKey, deriveKEK, generateRandomBytes, arrayBufferToBase64, base64ToArrayBuffer } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/audit";
 import { trackDailyEvent } from "@/lib/stats";
 
@@ -52,7 +52,7 @@ export default function StaffAddPatientPage() {
   const [hospital, setHospital] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
 
-  const [form, setForm] = useState({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "", bloodGroup: "Unknown", allergies: "None", chronicConditions: "None" });
   const [headshotBase64, setHeadshotBase64] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -91,7 +91,19 @@ export default function StaffAddPatientPage() {
       // 1. Hash the Mednoris ID for searchable index
       const mednorisIdHash = await hashData(mednorisId);
 
-      // 2. Encrypt all PII and sensitive identifiers
+      // 2. Generate a Patient-specific DEK
+      const patientDEK = await generateDEK();
+
+      // 3. Wrap PatientDEK with Hospital DEK (so hospital staff can unlock it)
+      const { wrappedBase64: hospitalWrappedDEK, ivBase64: hospitalWrapIV } = await wrapKey(patientDEK, dek);
+
+      // 4. Wrap PatientDEK with QR Challenge KEK (derived from DOB and a random secret)
+      const qrSecretBytes = generateRandomBytes(16);
+      const qrSecret = arrayBufferToBase64(qrSecretBytes);
+      const qrKEK = await deriveKEK(form.dob, qrSecretBytes);
+      const { wrappedBase64: qrWrappedDEK, ivBase64: qrWrapIV } = await wrapKey(patientDEK, qrKEK);
+
+      // 5. Encrypt all PII and sensitive identifiers using the PatientDEK
       const encryptedDetails = await encryptData(
         {
           mednorisId,
@@ -105,12 +117,12 @@ export default function StaffAddPatientPage() {
           phone: form.phone,
           address: form.address,
         },
-        dek
+        patientDEK
       );
 
-      // Encrypt headshot separately (it's large, keep it isolated)
+      // Encrypt headshot separately using the PatientDEK
       const encryptedHeadshot = headshotBase64
-        ? await encryptData(headshotBase64, dek)
+        ? await encryptData(headshotBase64, patientDEK)
         : null;
 
       const docRef = await addDoc(collection(db, "hospital_patients"), {
@@ -118,6 +130,19 @@ export default function StaffAddPatientPage() {
         mednorisIdHash,
         hospitalSlug: slug,
         createdAt: serverTimestamp(),
+        // Non-PII public snapshot — shown on QR scan BEFORE unlock
+        publicSnapshot: {
+          hospitalName: hospital?.name ?? slug,
+          registeredByName: staffProfile?.name || "Hospital Staff",
+          registeredByRole: staffProfile?.role || "staff",
+          hasAddress: !!form.address,
+        },
+        // The wrapped Patient DEKs
+        hospitalWrappedDEK,
+        hospitalWrapIV,
+        qrWrappedDEK,
+        qrWrapIV,
+        qrSecret, // salt used to derive the QR KEK — safe to store, DOB is the actual secret
         // Encrypted PII (including the raw mednorisId)
         encryptedDetails,
         encryptedHeadshot,
@@ -142,7 +167,8 @@ export default function StaffAddPatientPage() {
       ]);
 
       setNewPatientId(docRef.id);
-      setNewMednorisId(mednorisId);
+      // Save the generated QR secret directly into the newMednorisId state so we can build the URL
+      setNewMednorisId(`${mednorisId}#key=${qrSecret}`);
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || "Failed to add patient.");
@@ -232,11 +258,12 @@ export default function StaffAddPatientPage() {
             <div className="inline-block bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4" id="patient-qr-card">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mednoris ID Card</p>
               <div className="flex justify-center">
-                <QRCodeCanvas value={`${window.location.origin}/patient/${newMednorisId}`} />
+                {/* newMednorisId contains the MednorisID + #key=qrSecret */}
+                <QRCodeCanvas value={`${window.location.origin}/${newMednorisId}`} />
               </div>
               <div className="text-center">
                 <p className="text-lg font-black text-gray-900">{form.firstName} {form.lastName}</p>
-                <code className="text-brand-primary font-bold text-sm">{newMednorisId}</code>
+                <code className="text-brand-primary font-bold text-sm">{newMednorisId?.split("#")[0]}</code>
                 <p className="text-xs text-gray-400 mt-1">{hospital?.name}</p>
               </div>
             </div>
@@ -251,7 +278,7 @@ export default function StaffAddPatientPage() {
               <button
                 onClick={() => {
                   setSuccess(false);
-                  setForm({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "" });
+                  setForm({ firstName: "", lastName: "", dob: "", gender: "", phone: "", address: "", bloodGroup: "", allergies: "", chronicConditions: "" });
                   setHeadshotBase64(null);
                   setNewPatientId(null);
                   setNewMednorisId(null);
@@ -327,8 +354,8 @@ export default function StaffAddPatientPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2">Home Address</label>
-              <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Full residential address" rows={3} className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-colors resize-none" />
+              <label className="block text-sm font-bold text-gray-900 mb-2">Address</label>
+              <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={3} placeholder="Full residential address" className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-colors resize-none" />
             </div>
 
             {error && <p className="text-sm text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>}

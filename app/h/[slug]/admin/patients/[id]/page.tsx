@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock, Printer } from "lucide-react";
 import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { encryptData, decryptData } from "@/lib/crypto";
+import { encryptData, decryptData, unwrapKey } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/audit";
 import { trackDailyEvent, DailyStatEvent } from "@/lib/stats";
 import { getVisibleSections, getAccessLevel, RecordSection } from "@/lib/rbac";
@@ -47,7 +47,7 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
   const [corrections, setCorrections] = useState<any[]>([]);
   const [decryptionError, setDecryptionError] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(true);
-  
+
   useEffect(() => {
     async function decryptEntry() {
       if (!dek) return;
@@ -90,7 +90,7 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
       <div className="flex items-start justify-between gap-4 p-4 bg-white">
         <div className="flex-1">
           {decryptionError ? (
-            <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14}/> Failed to load secure data. Please log in again.</div>
+            <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14} /> Failed to load secure data. Please log in again.</div>
           ) : isDecrypting ? (
             <div className="text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading Secure Data...</div>
           ) : fields.length === 0 ? (
@@ -157,7 +157,7 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
 // Summary Tab to display aggregated information across allowed departments
 function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: any; visibleTabs: string[]; staffProfile: any; dek: Uint8Array | null }) {
   const tabsToAggregate = visibleTabs.filter(t => t !== "basic_info" && t !== "summary" && t !== "audit_log");
-  
+
   const allEntries: { tabKey: string; entry: any }[] = [];
   tabsToAggregate.forEach(tabKey => {
     const entries = patient.tabs?.[tabKey] || [];
@@ -191,7 +191,7 @@ function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: 
             entry={entry}
             dek={dek}
             accessLevel="view" // Summary is purely view-only aggregation
-            onCorrection={async () => {}} // Corrections should be made in the actual tab
+            onCorrection={async () => { }} // Corrections should be made in the actual tab
           />
         </div>
       ))}
@@ -229,7 +229,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
   const saveEntry = async () => {
     if (!formFields.some(f => f.label.trim()) || !dek) return;
     setSaving(true);
-    
+
     // Encrypt the raw data fields
     const rawFields = formFields.filter(f => f.label.trim());
     const encryptedFields = await encryptData(rawFields, dek);
@@ -243,7 +243,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
       addedAt: now(),
       entryTimestamp: Date.now() // to uniquely identify this entry
     };
-    
+
     const patRef = doc(db, "hospital_patients", patient.id);
     await updateDoc(patRef, {
       [`tabs.${tabKey}`]: arrayUnion(newEntry),
@@ -275,19 +275,19 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
     if (!dek) return;
     const entryIndex = entries.findIndex(e => e.entryTimestamp === entry.entryTimestamp && e.addedBy === entry.addedBy);
     if (entryIndex === -1) return;
-    
+
     // Decrypt existing corrections, append new one, and re-encrypt
     let currentCorrections: any[] = [];
     if (entry.encryptedCorrections) {
-       currentCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
+      currentCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
     }
-    
+
     const newCorrection = {
       note: correctionText,
       correctedBy: staffProfile.name,
       correctedAt: now(),
     };
-    
+
     currentCorrections.push(newCorrection);
     const newEncryptedCorrections = await encryptData(currentCorrections, dek);
 
@@ -298,11 +298,11 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
         encryptedCorrections: newEncryptedCorrections
       };
     });
-    
+
     await updateDoc(doc(db, "hospital_patients", patient.id), {
       [`tabs.${tabKey}`]: updatedEntries,
     });
-    
+
     await writeAuditLog(patient.hospitalSlug, {
       actorName: staffProfile.name,
       actorRole: staffProfile.role,
@@ -344,7 +344,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
       <AnimatePresence>
         {showAddForm && accessLevel === "full" && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="bg-gray-50 rounded-2xl p-4 mb-4 border border-gray-200">
-            <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Lock size={14} className="text-green-600"/> Secure Data Entry</p>
+            <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Lock size={14} className="text-green-600" /> Secure Data Entry</p>
             {formFields.map((field, i) => (
               <div key={i} className="flex gap-3 mb-2 relative">
                 <div className="flex-1 relative">
@@ -421,11 +421,11 @@ export default function StaffPatientProfilePage() {
   const params = useParams();
   const slug = params.slug as string;
   const patientId = params.id as string;
-  
+
   const [patient, setPatient] = useState<any>(null);
   const [staffProfile, setStaffProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [activeTab, setActiveTab] = useState<string>("basic_info");
   const [newlyAddedTabs, setNewlyAddedTabs] = useState<string[]>([]);
   const [isAddingTab, setIsAddingTab] = useState(false);
@@ -433,13 +433,20 @@ export default function StaffPatientProfilePage() {
   // Decrypted patient detail fields (populated from encryptedDetails or legacy plaintext)
   const [patientDetails, setPatientDetails] = useState<any>(null);
   const [patientHeadshot, setPatientHeadshot] = useState<string | null>(null);
+  const [patientDEK, setPatientDEK] = useState<Uint8Array | null>(null);
 
   const { dek } = useCrypto();
 
-  const baseVisibleTabs = staffProfile ? getVisibleSections(staffProfile.role, staffProfile.fullAccess) : [];
+  const rawProfile = staffProfile || { name: "Administrator", role: "admin", fullAccess: true };
+  const effectiveProfile = {
+    ...rawProfile,
+    fullAccess: rawProfile.fullAccess || rawProfile.role?.toLowerCase() === "owner" || rawProfile.role?.toLowerCase() === "admin"
+  };
+
+  const baseVisibleTabs = getVisibleSections(effectiveProfile.role, effectiveProfile.fullAccess);
   const existingPatientTabs = Object.keys(patient?.tabs || {}).filter(k => k !== "receptionist" && k !== "audit_log" && k !== "basic_info" && k !== "summary");
-  
-  const computedVisibleTabs = staffProfile?.fullAccess 
+
+  const computedVisibleTabs = effectiveProfile.fullAccess
     ? Array.from(new Set([...baseVisibleTabs, ...existingPatientTabs, ...newlyAddedTabs]))
     : baseVisibleTabs;
 
@@ -451,6 +458,9 @@ export default function StaffPatientProfilePage() {
         const data = s.data();
         setStaffProfile(data);
         const tabs = getVisibleSections(data.role, data.fullAccess);
+        if (tabs.length > 0) setActiveTab(tabs[0]);
+      } else {
+        const tabs = getVisibleSections("admin", true);
         if (tabs.length > 0) setActiveTab(tabs[0]);
       }
     });
@@ -473,7 +483,7 @@ export default function StaffPatientProfilePage() {
     async function decryptPatientDetails() {
       if (!patient || !dek) {
         // Fallback: use plaintext fields if they exist (legacy records)
-        if (patient) {
+        if (patient && !patient.encryptedDetails) {
           setPatientDetails({
             firstName: patient.firstName,
             lastName: patient.lastName,
@@ -487,8 +497,17 @@ export default function StaffPatientProfilePage() {
         return;
       }
       try {
+        let activeDEK = dek; // Fallback to master DEK for older records without patient-specific DEK
+        
+        // Unwrap patient-specific DEK if it exists (the new architecture)
+        if (patient.hospitalWrappedDEK && patient.hospitalWrapIV) {
+          activeDEK = await unwrapKey(patient.hospitalWrappedDEK, patient.hospitalWrapIV, dek);
+        }
+        
+        setPatientDEK(activeDEK);
+
         if (patient.encryptedDetails) {
-          const details = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, dek);
+          const details = await decryptData(patient.encryptedDetails.ciphertext, patient.encryptedDetails.iv, activeDEK);
           setPatientDetails(details);
         } else {
           // Legacy plaintext fallback
@@ -502,7 +521,7 @@ export default function StaffPatientProfilePage() {
           });
         }
         if (patient.encryptedHeadshot) {
-          const headshot = await decryptData(patient.encryptedHeadshot.ciphertext, patient.encryptedHeadshot.iv, dek);
+          const headshot = await decryptData(patient.encryptedHeadshot.ciphertext, patient.encryptedHeadshot.iv, activeDEK);
           setPatientHeadshot(headshot);
         } else {
           setPatientHeadshot(patient.headshotBase64 || null);
@@ -538,7 +557,7 @@ export default function StaffPatientProfilePage() {
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6 flex flex-wrap items-center gap-6 relative overflow-hidden">
         {/* Subtle lock watermark to remind them it's secure */}
         <Lock size={120} className="absolute -right-10 -bottom-10 text-gray-50 opacity-50 pointer-events-none" />
-        
+
         <div className="w-16 h-16 bg-purple-50 text-purple-600 font-black text-2xl rounded-full flex items-center justify-center shrink-0 z-10 overflow-hidden border border-purple-100">
           {patientHeadshot ? (
             <img src={patientHeadshot} alt="Headshot" className="w-full h-full object-cover" />
@@ -551,14 +570,14 @@ export default function StaffPatientProfilePage() {
             {patientDetails ? `${patientDetails.firstName} ${patientDetails.lastName}` : patient.mednorisId}
           </h2>
           <div className="flex flex-wrap items-center gap-3 mt-1">
-            <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-0.5 rounded-lg">{patient.mednorisId}</code>
+            <code className="text-xs font-bold text-brand-primary bg-brand-primary/5 px-2 py-0.5 rounded-lg">{patientDetails?.mednorisId || patient.mednorisId}</code>
             {patientDetails && (
-              <span className="text-xs text-gray-400 capitalize">{patientDetails.gender} · DOB: {patientDetails.dob}</span>
+              <span className="text-xs text-gray-400 capitalize">Gender {patientDetails.gender} · DOB: {patientDetails.dob}</span>
             )}
           </div>
         </div>
         <div className="text-right text-xs text-gray-400 z-10">
-          <p>Registered by <strong className="text-gray-700">{patient.createdBy}</strong></p>
+          <p>Registered by <strong className="text-gray-700">{patientDetails?.createdBy || patient.createdBy}</strong></p>
           <p>{patient.createdAt?.toDate?.()?.toLocaleDateString("en-GB") || "—"}</p>
         </div>
       </div>
@@ -574,7 +593,7 @@ export default function StaffPatientProfilePage() {
               {tab.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
             </button>
           ))}
-          {staffProfile?.fullAccess && (
+          {effectiveProfile.fullAccess && (
             <div className="px-3">
               {isAddingTab ? (
                 <div className="flex items-center gap-2">
@@ -660,7 +679,7 @@ export default function StaffPatientProfilePage() {
               )}
 
               {/* QR Code and Print Button */}
-              {staffProfile?.fullAccess && patientDetails && (
+              {effectiveProfile?.fullAccess && patientDetails && (
                 <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col items-center">
                   <style>{`
                     @media print {
@@ -684,11 +703,17 @@ export default function StaffPatientProfilePage() {
                       }
                     }
                   `}</style>
-                  
+
                   <div className="inline-block bg-white border border-gray-200 rounded-3xl p-6 space-y-4 mb-4" id="patient-qr-card">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Mednoris ID Card</p>
                     <div className="flex justify-center">
-                      <QRCodeCanvas value={`${window.location.origin}/patient/${patientDetails.mednorisId || patient.mednorisId}`} />
+                      {patient.qrSecret ? (
+                        <QRCodeCanvas value={`${window.location.origin}/${patientDetails.mednorisId || patient.mednorisId}#key=${patient.qrSecret}`} />
+                      ) : (
+                        <div className="w-[180px] h-[180px] bg-gray-100 rounded-2xl flex items-center justify-center text-xs text-gray-400 text-center px-4">
+                          QR secret not available.<br />Re-register patient to generate a new QR code.
+                        </div>
+                      )}
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-black text-gray-900">{patientDetails.firstName} {patientDetails.lastName}</p>
@@ -696,7 +721,7 @@ export default function StaffPatientProfilePage() {
                       <p className="text-xs text-gray-400 mt-1">{patientDetails.hospitalName || patient.hospitalName || "Hospital"}</p>
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={() => window.print()}
                     className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary text-sm transition-colors print:hidden"
@@ -711,15 +736,15 @@ export default function StaffPatientProfilePage() {
               patient={patient}
               visibleTabs={computedVisibleTabs}
               staffProfile={staffProfile}
-              dek={dek}
+              dek={patientDEK || dek}
             />
           ) : (
             <TabContent
               patient={patient}
               tabKey={activeTab}
-              staffProfile={staffProfile}
-              dek={dek}
-              accessLevel={getAccessLevel(staffProfile?.role, activeTab, staffProfile?.fullAccess)}
+              staffProfile={effectiveProfile}
+              dek={patientDEK || dek}
+              accessLevel={getAccessLevel(effectiveProfile.role, activeTab, effectiveProfile.fullAccess)}
               onUpdate={fetchPatient}
             />
           )}
