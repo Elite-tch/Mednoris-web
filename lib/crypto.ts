@@ -197,5 +197,5 @@ export async function decryptFile(ciphertextBase64: string, ivBase64: string, de
 
   if (!decrypted) throw new Error("File decryption failed: invalid key or corrupted ciphertext.");
   // Return a copy of the underlying buffer without libsodium's shared memory view
-  return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+  return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength) as ArrayBuffer;
 }
