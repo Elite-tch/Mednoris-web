@@ -114,9 +114,9 @@ export default function PatientRecordPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f4fb]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-[#4f46e5]" size={40} />
+          <Loader2 className="animate-spin text-primary" size={40} />
           <p className="text-sm font-medium text-gray-500">Loading medical record...</p>
         </div>
       </div>
@@ -125,13 +125,11 @@ export default function PatientRecordPage() {
 
   if (error || !record) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f4fb] p-6 text-center">
-        <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-5">
-          <ShieldAlert size={36} />
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
+       
         <h1 className="text-2xl font-black text-gray-900 mb-2">Record Not Found</h1>
         <p className="text-gray-500 max-w-xs mb-8 text-sm leading-relaxed">{error}</p>
-        <Link href="/" className="px-6 py-3 bg-[#4f46e5] text-white font-bold rounded-xl text-sm hover:bg-[#4338ca] transition-colors">
+        <Link href="/" className="px-6 py-3 bg-primary text-white font-bold rounded-xl text-sm hover:bg-secondary transition-colors">
           Return to Mednoris
         </Link>
       </div>
@@ -148,7 +146,7 @@ export default function PatientRecordPage() {
           <div key={idx} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <div className="flex justify-between items-center border-b border-gray-50 pb-3 mb-3">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{entry.addedAt}</span>
-              <span className="text-xs bg-indigo-50 text-[#4f46e5] px-2 py-1 rounded-md font-bold">{entry.addedByRole}</span>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-bold">{entry.addedByRole}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {entry.fields.map((f: any, i: number) => (
@@ -174,10 +172,10 @@ export default function PatientRecordPage() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-[#f5f4fb] flex flex-col">
+      <div className="min-h-screen bg-background flex flex-col">
         <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 no-print">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="Mednoris" className="h-7 w-auto object-contain" />
+            <img src="/logo.png" alt="Mednoris" className="h-18 w-auto object-contain" />
           </Link>
           <button
             onClick={() => window.print()}
@@ -199,66 +197,64 @@ export default function PatientRecordPage() {
                 className="w-full max-w-lg print-card"
               >
                 {/* Limo/Identity Header */}
-                <div className="bg-white rounded-t-3xl shadow-xl shadow-indigo-100/60 border border-gray-100 overflow-hidden">
-                  <div className="bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] px-8 py-8 relative overflow-hidden">
+                <div className="bg-white rounded-t-3xl shadow-xl shadow-primary/20 border border-gray-100 overflow-hidden">
+                  <div className="bg-primary px-8 py-8 relative overflow-hidden">
                     <div
                       className="absolute inset-0 opacity-10"
                       style={{ backgroundImage: "radial-gradient(circle at 2px 2px, white 1px, transparent 0)", backgroundSize: "18px 18px" }}
                     />
                     <div className="relative flex items-start justify-between">
                       <div>
-                        <p className="text-indigo-200 text-xs font-bold uppercase tracking-widest mb-1">Medical Record</p>
+                        <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-1">Medical Record</p>
                         <h1 className="text-white text-2xl font-black leading-tight">Patient Identity</h1>
-                        <p className="text-indigo-200 text-sm mt-1">Verified by Mednoris Network</p>
+                        <p className="text-white/80 text-sm mt-1">Verified by Mednoris Network</p>
                       </div>
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
-                        <ShieldCheck className="text-white" size={22} />
-                      </div>
+                     
                     </div>
                   </div>
 
                   <div className="px-8 py-6 space-y-5">
                     {/* Mednoris ID */}
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
-                        <Fingerprint className="text-[#4f46e5]" size={20} />
+                      <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                        <Fingerprint className="text-primary" size={20} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">Mednoris ID</p>
+                        <p className="text-xs font-bold text-secondary  uppercase tracking-widest mb-0.5">Mednoris ID</p>
                         <p className="text-lg font-black text-gray-900 font-mono tracking-wider">{record.mednorisId}</p>
                       </div>
                     </div>
                     <hr className="border-gray-50" />
                     {/* Hospital */}
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
-                        <Hospital className="text-[#4f46e5]" size={20} />
+                      <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                        <Hospital className="text-primary" size={20} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">Registering Hospital</p>
+                        <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-0.5">Registering Hospital</p>
                         <p className="text-base font-black text-gray-900">{record.publicSnapshot?.hospitalName || record.hospitalName}</p>
                       </div>
                     </div>
                     <hr className="border-gray-50" />
                     {/* Doctor / Staff */}
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
-                        <User className="text-[#4f46e5]" size={20} />
+                      <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                        <User className="text-primary" size={20} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">Attending Staff</p>
+                        <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-0.5">Attending Staff</p>
                         <p className="text-base font-black text-gray-900">{record.publicSnapshot?.registeredByName || "Hospital Staff"}</p>
-                        <p className="text-xs text-gray-400 capitalize mt-0.5">{record.publicSnapshot?.registeredByRole || ""}</p>
+                        <p className="text-xs text-secondary capitalize mt-0.5">{record.publicSnapshot?.registeredByRole || ""}</p>
                       </div>
                     </div>
                     {/* Registration Date */}
                     <hr className="border-gray-50" />
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
-                        <CalendarDays className="text-[#4f46e5]" size={20} />
+                      <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                        <CalendarDays className="text-primary" size={20} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">Date Registered</p>
+                        <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-0.5">Date Registered</p>
                         <p className="text-base font-black text-gray-900">
                           {record.registeredAt ? record.registeredAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "Unknown"}
                         </p>
@@ -269,11 +265,11 @@ export default function PatientRecordPage() {
                       <>
                         <hr className="border-gray-50" />
                         <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
-                            <MapPin className="text-[#4f46e5]" size={20} />
+                          <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                            <MapPin className="text-primary" size={20} />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5">Address on File</p>
+                            <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-0.5">Address on File</p>
                             <p className="text-sm text-gray-500 italic">Available after identity verification</p>
                           </div>
                         </div>
@@ -283,11 +279,9 @@ export default function PatientRecordPage() {
                 </div>
 
                 {/* Security Challenge */}
-                <div className="bg-white rounded-b-3xl shadow-xl shadow-indigo-100/60 border border-gray-100 p-8 border-t-4 border-t-indigo-500 no-print">
+                <div className="bg-white rounded-b-3xl shadow-xl shadow-primary border border-gray-100 p-8 border-t-4 border-t-primary no-print">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center shrink-0">
-                      <Lock className="text-[#4f46e5]" size={18} />
-                    </div>
+                    
                     <div>
                       <h2 className="text-lg font-black text-gray-900">Unlock Clinical Records</h2>
                       <p className="text-xs text-gray-500">Patient data is End-to-End Encrypted</p>
@@ -301,11 +295,11 @@ export default function PatientRecordPage() {
                       required
                       value={dob}
                       onChange={(e) => setDob(e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#4f46e5] focus:border-[#4f46e5] transition-colors mb-4"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors mb-4"
                     />
                     
                     {unlockError && (
-                      <p className="text-xs text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 mb-4 font-medium flex items-center gap-2">
+                      <p className="text-xs text-primary bg-primary/10 p-3 rounded-xl border border-primary/20 mb-4 font-medium flex items-center gap-2">
                         <ShieldAlert size={14} /> {unlockError}
                       </p>
                     )}
@@ -313,7 +307,7 @@ export default function PatientRecordPage() {
                     <button 
                       type="submit" 
                       disabled={unlocking}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-[#4f46e5] text-white font-bold rounded-xl text-sm hover:bg-[#4338ca] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-primary text-white font-bold rounded-xl text-sm hover:bg-secondary transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {unlocking ? <Loader2 className="animate-spin" size={18} /> : <Unlock size={18} />}
                       {unlocking ? "Decrypting Records..." : "Decrypt & View Records"}
@@ -329,49 +323,49 @@ export default function PatientRecordPage() {
                 className="w-full max-w-4xl print-card"
               >
                 {/* Unlocked Header */}
-                <div className="bg-white rounded-t-3xl shadow-xl shadow-emerald-100/60 border border-gray-100 overflow-hidden">
-                  <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-8 py-8 relative overflow-hidden">
+                <div className="bg-white rounded-t-3xl shadow-xl shadow-primary border border-gray-100 overflow-hidden">
+                  <div className=" px-8 py-8 relative overflow-hidden">
                     <div
                       className="absolute inset-0 opacity-10"
                       style={{ backgroundImage: "radial-gradient(circle at 2px 2px, white 1px, transparent 0)", backgroundSize: "18px 18px" }}
                     />
                     <div className="relative flex items-start justify-between">
                       <div>
-                        <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Medical Record</p>
-                        <h1 className="text-white text-3xl font-black leading-tight">{decryptedRecord.firstName} {decryptedRecord.lastName}</h1>
-                        <p className="text-emerald-100 text-sm mt-1">{decryptedRecord.gender.toUpperCase()} • Born {decryptedRecord.dob}</p>
+                        <p className="text-primary text-xs font-bold uppercase tracking-widest mb-1">Medical Record</p>
+                        <h1 className="text-secondary text-3xl font-black leading-tight">{decryptedRecord.firstName} {decryptedRecord.lastName}</h1>
+                        <p className="text-primary text-sm mt-1">{decryptedRecord.gender.toUpperCase()} • Born {decryptedRecord.dob}</p>
                       </div>
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
+                      <div className="w-12 h-12 bg-primary backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
                         <Unlock className="text-white" size={22} />
                       </div>
                     </div>
                   </div>
 
-                  <div className="px-8 py-6 grid grid-cols-2 md:grid-cols-3 gap-6 bg-emerald-50 border-b border-emerald-100">
+                  <div className="px-8 py-6 grid grid-cols-2 md:grid-cols-3 gap-6 bg-primary/5 border-b border-primary/10">
                     <div>
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Phone</p>
-                      <p className="text-sm font-bold text-emerald-900">{decryptedRecord.phone || "—"}</p>
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Phone</p>
+                      <p className="text-sm font-bold text-secondary">{decryptedRecord.phone || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Hospital</p>
-                      <p className="text-sm font-bold text-emerald-900">{record.publicSnapshot?.hospitalName || record.hospitalName}</p>
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Hospital</p>
+                      <p className="text-sm font-bold text-secondary">{record.publicSnapshot?.hospitalName || record.hospitalName}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Attending Staff</p>
-                      <p className="text-sm font-bold text-emerald-900">{record.publicSnapshot?.registeredByName || "—"}</p>
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Attending Staff</p>
+                      <p className="text-sm font-bold text-secondary">{record.publicSnapshot?.registeredByName || "—"}</p>
                     </div>
                     {decryptedRecord.address && (
                       <div className="col-span-full">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Address</p>
-                        <p className="text-sm font-bold text-emerald-900">{decryptedRecord.address}</p>
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Address</p>
+                        <p className="text-sm font-bold text-secondary">{decryptedRecord.address}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-[#f8f9fa] p-8 border-x border-gray-200">
+                <div className="bg-background p-8 border-x border-gray-200">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-                    <FileText className="text-[#4f46e5]" size={24} />
+                    <FileText className="text-primary" size={24} />
                     Consultation History
                   </h2>
                   {renderTabEntries(decryptedTabs.consultation, "No consultation records found.")}
@@ -379,15 +373,15 @@ export default function PatientRecordPage() {
 
                 <div className="bg-white p-8 border-x border-t border-gray-200">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-                    <FlaskConical className="text-pink-500" size={24} />
+                    <FlaskConical className="text-primary" size={24} />
                     Lab Results
                   </h2>
                   {renderTabEntries(decryptedTabs.lab, "No laboratory records found.")}
                 </div>
 
-                <div className="bg-[#f8f9fa] p-8 rounded-b-3xl border border-gray-200 shadow-lg">
+                <div className="bg-background p-8 rounded-b-3xl border border-gray-200 shadow-lg">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-                    <Pill className="text-amber-500" size={24} />
+                    <Pill className="text-primary" size={24} />
                     Pharmacy & Prescriptions
                   </h2>
                   {renderTabEntries(decryptedTabs.pharmacy, "No pharmacy records found.")}
@@ -398,7 +392,7 @@ export default function PatientRecordPage() {
 
           <p className="text-center text-xs text-gray-400 mt-8 max-w-sm mx-auto no-print">
             Powered by{" "}
-            <Link href="/" className="font-bold text-[#4f46e5] hover:underline">
+            <Link href="/" className="font-bold text-primary hover:underline">
               Mednoris
             </Link>{" "}
             - Secure Healthcare Identity Network
