@@ -158,3 +158,44 @@ export async function hashData(text: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+// 9. Encrypt raw file bytes using the DEK — returns { ciphertext: base64, iv: base64 }
+// Used for E2EE file attachments before uploading to Cloudinary.
+export async function encryptFile(fileBytes: ArrayBuffer, dek: Uint8Array): Promise<{ ciphertext: string; iv: string }> {
+  await sodium.ready;
+  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const message = new Uint8Array(fileBytes);
+
+  const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+    message,
+    null,
+    null,
+    nonce,
+    dek
+  );
+
+  return {
+    ciphertext: arrayBufferToBase64(ciphertext),
+    iv: arrayBufferToBase64(nonce),
+  };
+}
+
+// 10. Decrypt raw file bytes using the DEK — inverse of encryptFile.
+// Returns the original file bytes as an ArrayBuffer.
+export async function decryptFile(ciphertextBase64: string, ivBase64: string, dek: Uint8Array): Promise<ArrayBuffer> {
+  await sodium.ready;
+  const ciphertext = base64ToArrayBuffer(ciphertextBase64);
+  const nonce = base64ToArrayBuffer(ivBase64);
+
+  const decrypted = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+    null,
+    ciphertext,
+    null,
+    nonce,
+    dek
+  );
+
+  if (!decrypted) throw new Error("File decryption failed: invalid key or corrupted ciphertext.");
+  // Return a copy of the underlying buffer without libsodium's shared memory view
+  return decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+}

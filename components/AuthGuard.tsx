@@ -26,7 +26,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             !pathname.startsWith("/for-hospitals") && 
             !pathname.startsWith("/admin") &&
             !pathname.startsWith("/onboarding") &&
-            !pathname.startsWith("/h")) {
+            !pathname.startsWith("/h") &&
+            !pathname.startsWith("/MED-")) {
           // If trying to access a protected route while unauthenticated, redirect home
           router.replace("/");
         }

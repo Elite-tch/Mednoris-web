@@ -6,10 +6,11 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock, Printer } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, CheckSquare, AlertTriangle, RotateCcw, Lock, Printer, FileText, Paperclip, X, FileImage, File as FileIcon, Download } from "lucide-react";
 import Link from "next/link";
 import { useCrypto } from "@/contexts/CryptoContext";
-import { encryptData, decryptData, unwrapKey } from "@/lib/crypto";
+import { encryptData, decryptData, unwrapKey, wrapKey, deriveKEK, generateRandomBytes, arrayBufferToBase64 } from "@/lib/crypto";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { writeAuditLog } from "@/lib/audit";
 import { trackDailyEvent, DailyStatEvent } from "@/lib/stats";
 import { getVisibleSections, getAccessLevel, RecordSection } from "@/lib/rbac";
@@ -38,32 +39,119 @@ function QRCodeCanvas({ value }: { value: string }) {
   return <canvas ref={canvasRef} className="rounded-2xl shadow-sm mx-auto" />;
 }
 
+function GenerateQRForm({ patient, dek, onDone }: { patient: any; dek: Uint8Array | null; onDone: () => void }) {
+  const [dob, setDob] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!dek) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const qrSecretBytes = generateRandomBytes(16);
+      const qrSecret = arrayBufferToBase64(qrSecretBytes);
+      const qrKEK = await deriveKEK(dob, qrSecretBytes);
+      
+      const { wrappedBase64: qrWrappedDEK, ivBase64: qrWrapIV } = await wrapKey(dek, qrKEK);
+
+      const patRef = doc(db, "hospital_patients", patient.id);
+      await updateDoc(patRef, {
+        qrSecret,
+        qrWrappedDEK,
+        qrWrapIV,
+      });
+
+      await writeAuditLog(patient.hospitalSlug, {
+        actorName: "System",
+        actorRole: "system",
+        action: `Generated QR code for patient ${patient.mednorisId}`,
+      });
+
+      onDone();
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to generate QR.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="w-[180px] h-[180px] bg-gray-50 rounded-2xl flex flex-col items-center justify-center p-4 text-center border border-dashed border-gray-200">
+      <p className="text-xs font-bold text-gray-500 mb-2">QR Missing</p>
+      <input
+        type="date"
+        value={dob}
+        onChange={e => setDob(e.target.value)}
+        className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg mb-2 text-center outline-none focus:ring-1 focus:ring-brand-primary"
+        title="Patient Date of Birth"
+      />
+      {error && <p className="text-[10px] text-red-500 mb-2 leading-tight">{error}</p>}
+      <button
+        onClick={handleGenerate}
+        disabled={loading || !dob || !dek}
+        className="bg-brand-primary text-white text-xs font-bold py-1.5 px-3 rounded-lg w-full flex items-center justify-center gap-1 disabled:opacity-50"
+      >
+        {loading ? <Loader2 size={12} className="animate-spin" /> : <Lock size={12} />}
+        Generate
+      </button>
+    </div>
+  );
+}
+
+
+// Attachment chip — the URL is already decrypted as part of entryData, just open it
+function AttachmentChip({ attachment }: { attachment: any }) {
+  const isImage = attachment.type?.startsWith("image/");
+  const sizeKB = attachment.sizeBytes ? Math.round(attachment.sizeBytes / 1024) : null;
+
+  const handleOpen = () => {
+    window.open(attachment.storageUrl, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <button
+      onClick={handleOpen}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-lg text-xs font-medium text-indigo-700 transition-colors"
+    >
+      {isImage ? <FileImage size={12} /> : <FileIcon size={12} />}
+      <span className="max-w-[120px] truncate">{attachment.name}</span>
+      {sizeKB && <span className="text-indigo-400">{sizeKB}KB</span>}
+      <Download size={10} className="opacity-60" />
+    </button>
+  );
+}
+
 // A single saved form entry (immutable)
 function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCorrection: (entry: any) => void; dek: Uint8Array | null; accessLevel: string }) {
   const [showCorrection, setShowCorrection] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
   const [saving, setSaving] = useState(false);
-  const [fields, setFields] = useState<any[]>([]);
+  const [entryData, setEntryData] = useState<any>(null);
+  const [legacyFields, setLegacyFields] = useState<any[]>([]);
   const [corrections, setCorrections] = useState<any[]>([]);
   const [decryptionError, setDecryptionError] = useState(false);
   const [isDecrypting, setIsDecrypting] = useState(true);
-  
+
   useEffect(() => {
     async function decryptEntry() {
       if (!dek) return;
       try {
-        if (entry.encryptedFields) {
-          const decryptedFields = await decryptData(entry.encryptedFields.ciphertext, entry.encryptedFields.iv, dek);
-          setFields(decryptedFields);
+        if (entry.encryptedEntry) {
+          const data = await decryptData(entry.encryptedEntry.ciphertext, entry.encryptedEntry.iv, dek);
+          setEntryData(data);
+        } else if (entry.encryptedFields) {
+          const fields = await decryptData(entry.encryptedFields.ciphertext, entry.encryptedFields.iv, dek);
+          setLegacyFields(fields);
         } else if (entry.fields) {
-          setFields(entry.fields); // Legacy unencrypted fallback
+          setLegacyFields(entry.fields);
         }
-
         if (entry.encryptedCorrections) {
-          const decryptedCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
-          setCorrections(decryptedCorrections);
+          const c = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
+          setCorrections(c);
         } else if (entry.corrections) {
-          setCorrections(entry.corrections); // Legacy unencrypted fallback
+          setCorrections(entry.corrections);
         } else {
           setCorrections([]);
         }
@@ -88,38 +176,50 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
   return (
     <div className="border border-gray-100 rounded-2xl overflow-hidden mb-3">
       <div className="flex items-start justify-between gap-4 p-4 bg-white">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {decryptionError ? (
             <div className="text-red-500 text-sm flex items-center gap-2"><Lock size={14}/> Failed to load secure data. Please log in again.</div>
           ) : isDecrypting ? (
             <div className="text-gray-400 text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading Secure Data...</div>
-          ) : fields.length === 0 ? (
-            <div className="text-gray-400 text-sm italic">No data entries.</div>
-          ) : (
+          ) : entryData ? (
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0">{entryData.label}</span>
+                {entryData.value && <span className="text-sm font-semibold text-gray-900">{entryData.value}</span>}
+              </div>
+              {entryData.note && (
+                <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100 whitespace-pre-wrap">{entryData.note}</p>
+              )}
+              {entryData.attachments?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {entryData.attachments.map((att: any, i: number) => (
+                    <AttachmentChip key={i} attachment={att} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : legacyFields.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {fields.map((f: any, i: number) => (
+              {legacyFields.map((f: any, i: number) => (
                 <div key={i} className="min-w-0">
                   <p className="text-xs text-gray-400 font-medium truncate">{f.label}</p>
                   <p className="text-sm font-semibold text-gray-900 truncate">{f.value || <span className="italic text-gray-300">—</span>}</p>
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="text-gray-400 text-sm italic">No data entries.</div>
           )}
         </div>
         <div className="shrink-0 text-right">
           <p className="text-xs text-gray-400">{entry.addedBy} · {entry.addedAt}</p>
           {accessLevel === "full" && (
-            <button
-              onClick={() => setShowCorrection(v => !v)}
-              className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-orange-500 hover:text-orange-700"
-            >
+            <button onClick={() => setShowCorrection(v => !v)} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-orange-500 hover:text-orange-700">
               <RotateCcw size={12} /> Add Correction
             </button>
           )}
         </div>
       </div>
-
-      {/* Corrections */}
       {corrections.map((c: any, i: number) => (
         <div key={i} className="px-4 py-3 bg-orange-50 border-t border-orange-100 flex items-start gap-2">
           <AlertTriangle size={14} className="text-orange-500 mt-0.5 shrink-0" />
@@ -130,23 +230,15 @@ function FormEntry({ entry, onCorrection, dek, accessLevel }: { entry: any; onCo
           </div>
         </div>
       ))}
-
       {showCorrection && accessLevel === "full" && (
         <div className="px-4 py-3 bg-orange-50 border-t border-orange-100 space-y-2">
-          <textarea
-            value={correctionText}
-            onChange={e => setCorrectionText(e.target.value)}
-            placeholder="Describe the correction (e.g., BP should read 120/80, not 210/80)"
-            rows={2}
+          <textarea value={correctionText} onChange={e => setCorrectionText(e.target.value)}
+            placeholder="Describe the correction" rows={2}
             className="w-full px-3 py-2 border border-orange-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-300 resize-none bg-white"
           />
           <div className="flex gap-2">
-            <button onClick={handleSaveCorrection} disabled={saving || !correctionText.trim()} className="px-4 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 disabled:opacity-50">
-              Save Correction
-            </button>
-            <button onClick={() => setShowCorrection(false)} className="px-4 py-1.5 text-gray-500 text-xs font-medium rounded-lg hover:bg-gray-100">
-              Cancel
-            </button>
+            <button onClick={handleSaveCorrection} disabled={saving || !correctionText.trim()} className="px-4 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 disabled:opacity-50">Save Correction</button>
+            <button onClick={() => setShowCorrection(false)} className="px-4 py-1.5 text-gray-500 text-xs font-medium rounded-lg hover:bg-gray-100">Cancel</button>
           </div>
         </div>
       )}
@@ -199,110 +291,122 @@ function SummaryContent({ patient, visibleTabs, staffProfile, dek }: { patient: 
   );
 }
 
-// Dynamic tab form
+// Unified entry form — single label/value + optional note + optional attachments
 function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate }: { patient: any; tabKey: string; staffProfile: any; dek: Uint8Array | null; accessLevel: string; onUpdate: () => void }) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [formFields, setFormFields] = useState([{ label: "", value: "" }]);
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState("");
   const [saving, setSaving] = useState(false);
   const [activeFieldIndex, setActiveFieldIndex] = useState<number | null>(null);
-  const [labelSearch, setLabelSearch] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const entries: any[] = patient.tabs?.[tabKey] || [];
   const suggestions = getSuggestions(tabKey);
 
+  const MAX_FILES = 5;
+  const MAX_SIZE_MB = 10;
+  const ACCEPTED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+
   const now = () => new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-
-  const addField = () => setFormFields(f => [...f, { label: "", value: "" }]);
-  const updateField = (i: number, key: "label" | "value", val: string) => {
-    setFormFields(f => f.map((field, idx) => idx === i ? { ...field, [key]: val } : field));
-    if (key === "label") setLabelSearch(val);
-  };
-
-  const applyLabelSuggestion = (i: number, suggestion: string) => {
-    updateField(i, "label", suggestion);
-    setActiveFieldIndex(null);
-    setLabelSearch("");
-  };
 
   const filteredSuggestions = (search: string) =>
     suggestions.filter(s => s.toLowerCase().includes(search.toLowerCase()) && search.trim() !== "").slice(0, 6);
 
-  const saveEntry = async () => {
-    if (!formFields.some(f => f.label.trim()) || !dek) return;
-    setSaving(true);
-    
-    // Encrypt the raw data fields
-    const rawFields = formFields.filter(f => f.label.trim());
-    const encryptedFields = await encryptData(rawFields, dek);
-    const encryptedCorrections = await encryptData([], dek); // Empty array initially
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError("");
+    const selected = Array.from(e.target.files || []);
+    const combined = [...pendingFiles, ...selected];
+    const invalid = selected.find(f => !ACCEPTED_TYPES.includes(f.type));
+    if (invalid) { setFileError("Only JPG, PNG, and PDF files are allowed."); return; }
+    const tooBig = selected.find(f => f.size > MAX_SIZE_MB * 1024 * 1024);
+    if (tooBig) { setFileError(`Each file must be under ${MAX_SIZE_MB}MB.`); return; }
+    if (combined.length > MAX_FILES) { setFileError(`Maximum ${MAX_FILES} files per entry.`); return; }
+    setPendingFiles(combined);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-    const newEntry = {
-      encryptedFields,
-      encryptedCorrections,
-      addedBy: staffProfile.name,
-      addedByRole: staffProfile.role,
-      addedAt: now(),
-      entryTimestamp: Date.now() // to uniquely identify this entry
-    };
-    
-    const patRef = doc(db, "hospital_patients", patient.id);
-    await updateDoc(patRef, {
-      [`tabs.${tabKey}`]: arrayUnion(newEntry),
-    });
+  const removeFile = (idx: number) => setPendingFiles(f => f.filter((_, i) => i !== idx));
 
-    const tabStatMap: Record<string, DailyStatEvent> = {
-      consultation: "consultations",
-      lab: "labEntries",
-      pharmacy: "pharmacyEntries",
-    };
-    const statEvent = tabStatMap[tabKey];
-
-    await Promise.all([
-      writeAuditLog(patient.hospitalSlug, {
-        actorName: staffProfile.name,
-        actorRole: staffProfile.role,
-        action: `Added clinical entry to ${tabKey} tab for patient ${patient.mednorisId}`,
-      }),
-      ...(statEvent ? [trackDailyEvent(patient.hospitalSlug, statEvent)] : []),
-    ]);
-
-    setFormFields([{ label: "", value: "" }]);
+  const resetForm = () => {
+    setLabel(""); setValue(""); setNote("");
+    setShowNote(false); setShowFiles(false);
+    setPendingFiles([]); setFileError("");
     setShowAddForm(false);
-    setSaving(false);
-    onUpdate();
+  };
+
+  const saveEntry = async () => {
+    if (!label.trim() || !dek) return;
+    setSaving(true);
+    try {
+      // Upload each file to Cloudinary normally, store URL in encrypted payload
+      const attachments = await Promise.all(pendingFiles.map(async (file) => {
+        const storageUrl = await uploadToCloudinary(file);
+        return { name: file.name, type: file.type, sizeBytes: file.size, storageUrl };
+      }));
+
+      const payload: any = { label: label.trim(), value: value.trim() };
+      if (note.trim()) payload.note = note.trim();
+      if (attachments.length > 0) payload.attachments = attachments;
+
+      const encryptedEntry = await encryptData(payload, dek);
+      const encryptedCorrections = await encryptData([], dek);
+
+      const newEntry = {
+        encryptedEntry,
+        encryptedCorrections,
+        addedBy: staffProfile.name,
+        addedByRole: staffProfile.role,
+        addedAt: now(),
+        entryTimestamp: Date.now(),
+      };
+
+      const patRef = doc(db, "hospital_patients", patient.id);
+      await updateDoc(patRef, { [`tabs.${tabKey}`]: arrayUnion(newEntry) });
+
+      const tabStatMap: Record<string, DailyStatEvent> = {
+        consultation: "consultations",
+        lab: "labEntries",
+        pharmacy: "pharmacyEntries",
+      };
+      const statEvent = tabStatMap[tabKey];
+
+      await Promise.all([
+        writeAuditLog(patient.hospitalSlug, {
+          actorName: staffProfile.name,
+          actorRole: staffProfile.role,
+          action: `Added entry to ${tabKey} tab for patient ${patient.mednorisId}${
+            attachments.length > 0 ? ` (${attachments.length} attachment(s))` : ""
+          }`,
+        }),
+        ...(statEvent ? [trackDailyEvent(patient.hospitalSlug, statEvent)] : []),
+      ]);
+
+      resetForm();
+      onUpdate();
+    } catch (err: any) {
+      console.error("Failed to save entry", err);
+      setFileError(err.message || "Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCorrection = async (entry: any, correctionText: string) => {
     if (!dek) return;
     const entryIndex = entries.findIndex(e => e.entryTimestamp === entry.entryTimestamp && e.addedBy === entry.addedBy);
     if (entryIndex === -1) return;
-    
-    // Decrypt existing corrections, append new one, and re-encrypt
     let currentCorrections: any[] = [];
     if (entry.encryptedCorrections) {
-       currentCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
+      currentCorrections = await decryptData(entry.encryptedCorrections.ciphertext, entry.encryptedCorrections.iv, dek);
     }
-    
-    const newCorrection = {
-      note: correctionText,
-      correctedBy: staffProfile.name,
-      correctedAt: now(),
-    };
-    
-    currentCorrections.push(newCorrection);
+    currentCorrections.push({ note: correctionText, correctedBy: staffProfile.name, correctedAt: now() });
     const newEncryptedCorrections = await encryptData(currentCorrections, dek);
-
-    const updatedEntries = entries.map((e, i) => {
-      if (i !== entryIndex) return e;
-      return {
-        ...e,
-        encryptedCorrections: newEncryptedCorrections
-      };
-    });
-    
-    await updateDoc(doc(db, "hospital_patients", patient.id), {
-      [`tabs.${tabKey}`]: updatedEntries,
-    });
-    
+    const updatedEntries = entries.map((e, i) => i !== entryIndex ? e : { ...e, encryptedCorrections: newEncryptedCorrections });
+    await updateDoc(doc(db, "hospital_patients", patient.id), { [`tabs.${tabKey}`]: updatedEntries });
     await writeAuditLog(patient.hospitalSlug, {
       actorName: staffProfile.name,
       actorRole: staffProfile.role,
@@ -331,13 +435,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
           </div>
         )}
         {entries.map((entry, i) => (
-          <FormEntry
-            key={i}
-            entry={entry}
-            onCorrection={(e) => handleCorrection(e, e.correctionText)}
-            dek={dek}
-            accessLevel={accessLevel}
-          />
+          <FormEntry key={i} entry={entry} onCorrection={(e) => handleCorrection(e, e.correctionText)} dek={dek} accessLevel={accessLevel} />
         ))}
       </div>
 
@@ -345,64 +443,90 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
         {showAddForm && accessLevel === "full" && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="bg-gray-50 rounded-2xl p-4 mb-4 border border-gray-200">
             <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Lock size={14} className="text-green-600"/> Secure Data Entry</p>
-            {formFields.map((field, i) => (
-              <div key={i} className="flex gap-3 mb-2 relative">
-                <div className="flex-1 relative">
-                  <input
-                    value={field.label}
-                    onChange={e => { updateField(i, "label", e.target.value); setActiveFieldIndex(i); }}
-                    onFocus={() => setActiveFieldIndex(i)}
-                    onBlur={() => setTimeout(() => setActiveFieldIndex(null), 150)}
-                    placeholder="Label (e.g. Blood Pressure)"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white"
-                  />
-                  {activeFieldIndex === i && filteredSuggestions(field.label).length > 0 && (
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                      {filteredSuggestions(field.label).map(s => (
-                        <button
-                          key={s}
-                          type="button"
-                          onMouseDown={() => applyLabelSuggestion(i, s)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-brand-primary/5 hover:text-brand-primary font-medium transition-colors"
-                        >
-                          {s}
-                        </button>
+
+            <div className="flex gap-2 mb-2 relative">
+              <div className="flex-1 relative">
+                <input
+                  value={label}
+                  onChange={e => { setLabel(e.target.value); setActiveFieldIndex(0); }}
+                  onFocus={() => setActiveFieldIndex(0)}
+                  onBlur={() => setTimeout(() => setActiveFieldIndex(null), 150)}
+                  placeholder="Label (e.g. Blood Pressure)"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white"
+                />
+                {activeFieldIndex === 0 && filteredSuggestions(label).length > 0 && (
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                    {filteredSuggestions(label).map(s => (
+                      <button key={s} type="button" onMouseDown={() => { setLabel(s); setActiveFieldIndex(null); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-brand-primary/5 hover:text-brand-primary font-medium transition-colors">{s}</button>
+                    ))}
+                  </div>
+                )}
+                {activeFieldIndex === 0 && label === "" && (
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 mb-1.5">Common Labels</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestions.slice(0, 8).map(s => (
+                        <button key={s} type="button" onMouseDown={() => { setLabel(s); setActiveFieldIndex(null); }}
+                          className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors">{s}</button>
                       ))}
                     </div>
-                  )}
-                  {/* Show top suggestion pills when field is empty */}
-                  {activeFieldIndex === i && field.label === "" && (
-                    <div className="absolute left-0 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-2">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 mb-1.5">Common Labels</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {suggestions.slice(0, 8).map(s => (
-                          <button
-                            key={s}
-                            type="button"
-                            onMouseDown={() => applyLabelSuggestion(i, s)}
-                            className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <input value={field.value} onChange={e => updateField(i, "value", e.target.value)} placeholder="Value (e.g. 120/80)" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white" />
+                  </div>
+                )}
               </div>
-            ))}
-            <button onClick={addField} className="text-xs font-bold text-brand-primary hover:underline mt-1 mb-4 flex items-center gap-1">
-              <Plus size={13} /> Add another field
-            </button>
-            <div className="flex gap-2">
-              <button onClick={saveEntry} disabled={saving || !dek} className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:bg-brand-secondary disabled:opacity-70">
+              <input value={value} onChange={e => setValue(e.target.value)} placeholder="Value"
+                className="w-36 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white"
+              />
+              <button type="button" onClick={() => setShowNote(v => !v)} title="Add a note"
+                className={`p-2.5 rounded-xl border transition-colors ${showNote ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-gray-400 border-gray-200 hover:text-brand-primary hover:border-brand-primary"}`}
+              ><FileText size={16} /></button>
+              <button type="button" onClick={() => { setShowFiles(v => !v); if (!showFiles && fileInputRef.current) fileInputRef.current.click(); }} title="Attach files"
+                className={`p-2.5 rounded-xl border transition-colors ${showFiles || pendingFiles.length > 0 ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-gray-400 border-gray-200 hover:text-brand-primary hover:border-brand-primary"}`}
+              >
+                <Paperclip size={16} />
+                {pendingFiles.length > 0 && <span className="ml-1 text-xs font-bold">{pendingFiles.length}</span>}
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {showNote && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add a clinical note..." rows={3}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white resize-none mb-2"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileChange} className="hidden" />
+            {(showFiles || pendingFiles.length > 0) && (
+              <div className="mb-2 space-y-1">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs">
+                    <span className="flex items-center gap-1.5 text-gray-700 font-medium truncate">
+                      {f.type.startsWith("image/") ? <FileImage size={13} /> : <FileIcon size={13} />}
+                      <span className="truncate max-w-[200px]">{f.name}</span>
+                      <span className="text-gray-400 shrink-0">{Math.round(f.size / 1024)}KB</span>
+                    </span>
+                    <button onClick={() => removeFile(i)} className="text-gray-400 hover:text-red-500 shrink-0 ml-2"><X size={13} /></button>
+                  </div>
+                ))}
+                {pendingFiles.length < MAX_FILES && (
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1">
+                    <Plus size={13} /> Add file
+                  </button>
+                )}
+              </div>
+            )}
+
+            {fileError && <p className="text-xs text-red-500 mb-2">{fileError}</p>}
+
+            <div className="flex gap-2 mt-2">
+              <button onClick={saveEntry} disabled={saving || !dek || !label.trim()} className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:bg-brand-secondary disabled:opacity-70">
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
-                Save Secure Entry
+                {saving ? "Saving..." : "Save Secure Entry"}
               </button>
-              <button onClick={() => { setShowAddForm(false); setFormFields([{ label: "", value: "" }]); }} className="px-4 py-2 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-100">
-                Cancel
-              </button>
+              <button onClick={resetForm} className="px-4 py-2 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-100">Cancel</button>
             </div>
           </motion.div>
         )}
@@ -416,6 +540,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
     </div>
   );
 }
+
 
 export default function StaffPatientProfilePage() {
   const params = useParams();
@@ -692,7 +817,11 @@ export default function StaffPatientProfilePage() {
                   <div className="inline-block bg-white border border-gray-200 rounded-3xl p-6 space-y-4 mb-4" id="patient-qr-card">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Mednoris ID Card</p>
                     <div className="flex justify-center">
-                      <QRCodeCanvas value={`${window.location.origin}/patient/${patientDetails.mednorisId || patient.mednorisId}`} />
+                      {patient.qrSecret ? (
+                        <QRCodeCanvas value={`${window.location.origin}/${patientDetails.mednorisId || patient.mednorisId}#key=${patient.qrSecret}`} />
+                      ) : (
+                        <GenerateQRForm patient={patient} dek={dek} onDone={fetchPatient} />
+                      )}
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-black text-gray-900">{patientDetails.firstName} {patientDetails.lastName}</p>

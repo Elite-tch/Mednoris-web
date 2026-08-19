@@ -223,7 +223,7 @@ export default function StaffAddPatientPage() {
       >
         {success && newMednorisId ? (
           <div className="text-center py-4 space-y-6">
-            
+
             <div>
               <h2 className="text-xl font-black text-gray-900 print:hidden">Patient Registered &amp; Encrypted!</h2>
               <p className="text-gray-500 text-sm mt-1 print:hidden">
@@ -261,7 +261,7 @@ export default function StaffAddPatientPage() {
                 {/* newMednorisId contains the MednorisID + #key=qrSecret */}
                 <QRCodeCanvas value={`${window.location.origin}/${newMednorisId}`} />
               </div>
-              <div className="text-center">
+              <div className="text-center"> 
                 <p className="text-lg font-black text-gray-900">{form.firstName} {form.lastName}</p>
                 <code className="text-brand-primary font-bold text-sm">{newMednorisId?.split("#")[0]}</code>
                 <p className="text-xs text-gray-400 mt-1">{hospital?.name}</p>
@@ -361,7 +361,7 @@ export default function StaffAddPatientPage() {
             {error && <p className="text-sm text-red-600 bg-red-50 p-4 rounded-xl border border-red-100">{error}</p>}
 
             <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-              
+
               <button type="submit" disabled={loading || !dek} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-secondary transition-colors disabled:opacity-70 flex items-center gap-2">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
                 {loading ? "Encrypting & Saving..." : "Register Patient"}
