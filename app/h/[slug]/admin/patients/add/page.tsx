@@ -67,12 +67,20 @@ export default function StaffAddPatientPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
-      const [h, s] = await Promise.all([
-        getDoc(doc(db, "hospitals", slug)),
-        getDoc(doc(db, "hospital_staff", user.uid)),
-      ]);
-      if (h.exists()) setHospital(h.data());
-      if (s.exists()) setStaffProfile(s.data());
+      const hDoc = await getDoc(doc(db, "hospitals", slug));
+      const sDoc = await getDoc(doc(db, "hospital_staff", user.uid));
+      
+      if (hDoc.exists()) setHospital(hDoc.data());
+      
+      if (sDoc.exists()) {
+        setStaffProfile(sDoc.data());
+      } else {
+        // Fallback: Check if they are an admin in the general users collection
+        const uDoc = await getDoc(doc(db, "users", user.uid));
+        if (uDoc.exists()) {
+          setStaffProfile({ ...uDoc.data(), name: uDoc.data().name || "Admin", role: uDoc.data().role || "Admin" });
+        }
+      }
     });
     return () => unsubscribe();
   }, [slug]);

@@ -143,15 +143,15 @@ export default function PatientRecordPage() {
     return (
       <div className="space-y-4">
         {entries.sort((a,b) => b.entryTimestamp - a.entryTimestamp).map((entry, idx) => (
-          <div key={idx} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+          <div key={idx} className="">
             <div className="flex justify-between items-center border-b border-gray-50 pb-3 mb-3">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{entry.addedAt}</span>
+              <span className="text-xs font-bold text-primary uppercase tracking-widest">{entry.addedAt}</span>
               <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-bold">{entry.addedByRole}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {entry.fields.map((f: any, i: number) => (
                 <div key={i}>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{f.label}</p>
+                  <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">{f.label}</p>
                   <p className="text-sm text-gray-900">{f.value}</p>
                 </div>
               ))}
@@ -250,7 +250,7 @@ export default function PatientRecordPage() {
                     {/* Registration Date */}
                     <hr className="border-gray-50" />
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5">
                         <CalendarDays className="text-primary" size={20} />
                       </div>
                       <div>
@@ -323,7 +323,7 @@ export default function PatientRecordPage() {
                 className="w-full max-w-4xl print-card"
               >
                 {/* Unlocked Header */}
-                <div className="bg-white rounded-t-3xl shadow-xl shadow-primary border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-t-3xl border border-gray-100 overflow-hidden">
                   <div className=" px-8 py-8 relative overflow-hidden">
                     <div
                       className="absolute inset-0 opacity-10"
@@ -333,7 +333,7 @@ export default function PatientRecordPage() {
                       <div>
                         <p className="text-primary text-xs font-bold uppercase tracking-widest mb-1">Medical Record</p>
                         <h1 className="text-secondary text-3xl font-black leading-tight">{decryptedRecord.firstName} {decryptedRecord.lastName}</h1>
-                        <p className="text-primary text-sm mt-1">{decryptedRecord.gender.toUpperCase()} • Born {decryptedRecord.dob}</p>
+                        <p className="text-primary text-sm mt-1"> Gender {decryptedRecord.gender.toUpperCase()} • Born {decryptedRecord.dob}</p>
                       </div>
                       <div className="w-12 h-12 bg-primary backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
                         <Unlock className="text-white" size={22} />
@@ -352,7 +352,7 @@ export default function PatientRecordPage() {
                     </div>
                     <div>
                       <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Attending Staff</p>
-                      <p className="text-sm font-bold text-secondary">{record.publicSnapshot?.registeredByName || "—"}</p>
+                      <p className="text-sm font-bold text-secondary">{record.publicSnapshot?.registeredByName || decryptedRecord?.createdBy || "—"}</p>
                     </div>
                     {decryptedRecord.address && (
                       <div className="col-span-full">
