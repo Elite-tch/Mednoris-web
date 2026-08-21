@@ -549,7 +549,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
                 type="button"
                 onClick={() => { setShowFiles(v => !v); if (!showFiles && fileInputRef.current) fileInputRef.current.click(); }}
                 title="Attach files"
-                className={`p-2.5 rounded-xl border text-sm transition-colors ${
+                className={`p-2.5 flex items-center w-fit gap-2 rounded-xl border text-sm transition-colors ${
                   showFiles || pendingFiles.length > 0
                     ? "bg-brand-primary text-white border-brand-primary"
                     : "bg-white text-gray-400 border-gray-200 hover:text-brand-primary hover:border-brand-primary"
@@ -557,7 +557,7 @@ function TabContent({ patient, tabKey, staffProfile, dek, accessLevel, onUpdate 
               >
                 <Paperclip size={16} />
                 {pendingFiles.length > 0 && (
-                  <span className="ml-1 text-xs font-bold">{pendingFiles.length}</span>
+                  <span className=" text- font-bold">{pendingFiles.length}</span>
                 )}
               </button>
             </div>
