@@ -140,7 +140,7 @@ export default function AboutPage() {
 
       
 
-      {/* 4. Meet the Team */}
+      {/* 4. Meet the Team 
       <section className="py-10 px-4 max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-extrabold text-brand-primary mb-4">Meet the Team</h2>
@@ -150,10 +150,10 @@ export default function AboutPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-12 w-[95%] md:w-[80%] mx-auto">
-          {/* Johnbosco */}
+          {/* Johnbosco 
           <div className="bg-white p-8 rounded-xl shadow border border-gray-100 flex flex-col items-center text-center transition-shadow">
             <div className="w-60 h-60 rounded-full bg-brand-primary/10 mb-3 overflow-hidden border-4 border-white shadow-lg">
-              {/* Placeholder image until a real one is provided */}
+              {/* Placeholder image until a real one is provided 
               <img src="/izu1.jpg" alt="Johnbosco Izuchukwu" className="w-full h-full object-cover" />
             </div>
             <h4 className="text-2xl font-bold text-brand-primary mb-2">Johnbosco Izuchukwu</h4>
@@ -171,10 +171,10 @@ export default function AboutPage() {
             </div>
           </div>
 
-          {/* Kendra */}
+          {/* Kendra 
           <div className="bg-white p-8 rounded-xl shadow border border-gray-100 flex flex-col items-center text-center transition-shadow">
             <div className="w-60 h-60 rounded-full bg-brand-primary/10 mb-3 overflow-hidden border-4 border-white shadow-lg">
-              {/* Placeholder image until a real one is provided */}
+              {/* Placeholder image until a real one is provided 
               <img src="/ken.jpg" alt="Kendra Chidimma" className="w-full h-full object-cover" />
             </div>
             <h4 className="text-2xl font-bold text-brand-primary mb-2">Kendra Chidimma</h4>
@@ -192,7 +192,7 @@ export default function AboutPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* 5. Partnerships */}
       <section className=" py-10 px-4 border-t border-gray-100">
