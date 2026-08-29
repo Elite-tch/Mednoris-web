@@ -199,7 +199,7 @@ export default function PatientRecordPage() {
         }
       `}</style>
 
-      <div className="min-h-screen  flex flex-col">
+      <div className="min-h-screen bg-white flex flex-col">
         <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 no-print">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo.png" alt="Mednoris" className="h-18 w-auto object-contain" />
