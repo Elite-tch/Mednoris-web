@@ -94,9 +94,14 @@ export default function PatientRecordPage() {
       for (const tabKey of ['consultation', 'lab', 'pharmacy']) {
         if (tabs[tabKey]) {
           for (const entry of tabs[tabKey]) {
-            if (entry.encryptedFields) {
+            if (entry.encryptedEntry) {
+              const data = await decryptData(entry.encryptedEntry.ciphertext, entry.encryptedEntry.iv, patientDEK);
+              decryptedTabsData[tabKey].push({ ...entry, entryData: data });
+            } else if (entry.encryptedFields) {
               const fields = await decryptData(entry.encryptedFields.ciphertext, entry.encryptedFields.iv, patientDEK);
-              decryptedTabsData[tabKey].push({ ...entry, fields });
+              decryptedTabsData[tabKey].push({ ...entry, legacyFields: fields });
+            } else if (entry.fields) {
+              decryptedTabsData[tabKey].push({ ...entry, legacyFields: entry.fields });
             }
           }
         }
@@ -143,19 +148,41 @@ export default function PatientRecordPage() {
     return (
       <div className="space-y-4">
         {entries.sort((a,b) => b.entryTimestamp - a.entryTimestamp).map((entry, idx) => (
-          <div key={idx} className="">
+          <div key={idx} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <div className="flex justify-between items-center border-b border-gray-50 pb-3 mb-3">
               <span className="text-xs font-bold text-primary uppercase tracking-widest">{entry.addedAt}</span>
               <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-bold">{entry.addedByRole}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {entry.fields.map((f: any, i: number) => (
-                <div key={i}>
-                  <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">{f.label}</p>
-                  <p className="text-sm text-gray-900">{f.value}</p>
+            
+            {entry.entryData ? (
+              <div className="space-y-2">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wider shrink-0">{entry.entryData.label}</span>
+                  {entry.entryData.value && <span className="text-sm font-semibold text-gray-900">{entry.entryData.value}</span>}
                 </div>
-              ))}
-            </div>
+                {entry.entryData.note && (
+                  <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100 whitespace-pre-wrap">{entry.entryData.note}</p>
+                )}
+                {entry.entryData.attachments?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {entry.entryData.attachments.map((att: any, i: number) => (
+                      <a key={i} href={att.storageUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/10 rounded-lg text-xs font-medium text-primary transition-colors no-print">
+                        <span className="truncate max-w-[150px]">{att.name}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {entry.legacyFields?.map((f: any, i: number) => (
+                  <div key={i}>
+                    <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">{f.label}</p>
+                    <p className="text-sm text-gray-900">{f.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
