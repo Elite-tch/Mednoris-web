@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
@@ -14,14 +14,14 @@ const fadeUp = (delay = 0) => ({
 });
 
 export default function DoctorDashboardPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [doctor, setDoctor] = useState<Record<string, any> | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
 
   useEffect(() => {
     const fetch = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "doctors", user.id));
+      const snap = await getDoc(doc(db, "doctors", user.uid));
       if (snap.exists()) setDoctor(snap.data());
     };
     fetch();
@@ -31,7 +31,7 @@ export default function DoctorDashboardPage() {
     if (!user) return;
     const q = query(
       collection(db, "appointments"),
-      where("doctorId", "==", user.id)
+      where("doctorId", "==", user.uid)
     );
 
     const patientCache: Record<string, { name: string; image: string | null }> = {};

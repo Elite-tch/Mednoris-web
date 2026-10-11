@@ -1,78 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Loader2 } from "lucide-react";
+
+// Public routes that don't need authentication
+const PUBLIC_ROUTES = [
+  "/",
+  "/about",
+  "/contact",
+  "/auth",
+];
+
+const PUBLIC_PREFIXES = [
+  "/for-hospitals",
+  "/admin",
+  "/h",
+  "/MED-",
+];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, user } = usePrivy();
+  const { loading, authenticated, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Wait until Privy is ready
-    if (!ready) return;
+    if (loading) return;
+
+    const isPublic =
+      PUBLIC_ROUTES.includes(pathname) ||
+      PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix));
+
+    if (!authenticated) {
+      // Unauthenticated user trying to access a protected route → send to auth
+      if (!isPublic) {
+        router.replace("/auth");
+      }
+      return;
+    }
+
+    // Authenticated user
+    if (!user) return;
 
     const checkUser = async () => {
-      // Allow unrestricted access to the landing page and specific public routes
-      if (!authenticated) {
-        if (pathname !== "/" && 
-            !pathname.startsWith("/public") && 
-            pathname !== "/about" && 
-            pathname !== "/contact" && 
-            !pathname.startsWith("/for-hospitals") && 
-            !pathname.startsWith("/admin") &&
-            !pathname.startsWith("/onboarding") &&
-            !pathname.startsWith("/h") &&
-            !pathname.startsWith("/MED-")) {
-          // If trying to access a protected route while unauthenticated, redirect home
-          router.replace("/");
-        }
-        setIsChecking(false);
-        return;
-      }
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
 
-      if (user) {
-        try {
-          // Check if the user exists in our unified 'users' collection
-          const userDocRef = doc(db, "users", user.id);
-          const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const role = data.role ? data.role.toLowerCase() : "patient";
+          const targetDashboard = `/${role}/dashboard`;
 
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            const role = data.role ? data.role.toLowerCase() : "patient";
-            const targetDashboard = `/${role}/dashboard`;
+          // Redirect from landing or /auth to the correct dashboard
+          const isViewingLanding =
+            typeof window !== "undefined" &&
+            window.location.search.includes("view=landing");
 
-            // User is onboarded. Redirect from landing to dashboard unless they explicitly want to view the landing page.
-            const isViewingLanding = typeof window !== 'undefined' && window.location.search.includes("view=landing");
-            
-            if ((pathname === "/" && !isViewingLanding) || pathname === "/onboarding") {
-              router.replace(targetDashboard); 
-            }
-          } else {
-            // User is NOT onboarded. If they aren't already on the onboarding page, redirect them there.
-            if (pathname !== "/onboarding") {
-              router.replace("/onboarding");
-            }
+          if ((pathname === "/" && !isViewingLanding) || pathname === "/auth") {
+            router.replace(targetDashboard);
           }
-        } catch (error) {
-          console.error("Error checking user in Firebase:", error);
-        } finally {
-          setIsChecking(false);
+        } else {
+          // No Firestore user doc yet — send to auth page for role selection
+          if (pathname !== "/auth") {
+            router.replace("/auth");
+          }
         }
+      } catch (error) {
+        console.error("Error checking user in Firebase:", error);
       }
     };
 
     checkUser();
-  }, [ready, authenticated, user, pathname, router]);
+  }, [loading, authenticated, user, pathname, router]);
 
-  if (!ready || isChecking) {
+  if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#f8f7fb]">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-primary border-t-transparent"></div>
+        <Loader2 className="animate-spin text-brand-primary" size={36} />
       </div>
     );
   }

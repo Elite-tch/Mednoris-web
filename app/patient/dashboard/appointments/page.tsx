@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { CalendarDays, Clock, CheckCircle2, XCircle, CalendarClock, Loader2, Video } from "lucide-react";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import Toast, { ToastType } from "@/components/ui/Toast";
 
@@ -53,7 +53,7 @@ const calculateDynamicStatus = (appointment: any) => {
 };
 
 export default function AppointmentsPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [active, setActive] = useState("Scheduled");
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ export default function AppointmentsPage() {
       try {
         const q = query(
           collection(db, "appointments"),
-          where("patientId", "==", user.id)
+          where("patientId", "==", user.uid)
         );
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((d) => {

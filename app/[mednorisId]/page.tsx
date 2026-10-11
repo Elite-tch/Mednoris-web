@@ -390,7 +390,7 @@ export default function PatientRecordPage() {
                   </div>
                 </div>
 
-                <div className="bg-background p-8 border-x border-gray-200">
+                <div className="bg-background p-4 md:p-8 border-x border-gray-200">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
                     <FileText className="text-primary" size={24} />
                     Consultation History
@@ -398,7 +398,7 @@ export default function PatientRecordPage() {
                   {renderTabEntries(decryptedTabs.consultation, "No consultation records found.")}
                 </div>
 
-                <div className="bg-white p-8 border-x border-t border-gray-200">
+                <div className="bg-white p-4 md:p-8 border-x border-t border-gray-200">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
                     <FlaskConical className="text-primary" size={24} />
                     Lab Results
@@ -406,7 +406,7 @@ export default function PatientRecordPage() {
                   {renderTabEntries(decryptedTabs.lab, "No laboratory records found.")}
                 </div>
 
-                <div className="bg-background p-8 rounded-b-3xl border border-gray-200 shadow-lg">
+                <div className="bg-background p-4 md:p-8 rounded-b-3xl border border-gray-200 shadow-lg">
                   <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
                     <Pill className="text-primary" size={24} />
                     Pharmacy & Prescriptions

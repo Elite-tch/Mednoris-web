@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -22,7 +22,7 @@ const SECTIONS = [
 ];
 
 export default function ProfilePage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("basic");
@@ -57,7 +57,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetch = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "patients", user.id));
+      const snap = await getDoc(doc(db, "patients", user.uid));
       if (snap.exists()) {
         setForm((prev) => ({ ...prev, ...(snap.data() as typeof form) }));
         if (snap.data().profileImage) setImagePreview(snap.data().profileImage);
@@ -82,7 +82,7 @@ export default function ProfilePage() {
       let imageUrl = form.profileImage;
       if (imageFile) imageUrl = await uploadToCloudinary(imageFile);
       const data = { ...form, profileImage: imageUrl };
-      await setDoc(doc(db, "patients", user.id), data, { merge: true });
+      await setDoc(doc(db, "patients", user.uid), data, { merge: true });
       setForm((f) => ({ ...f, profileImage: imageUrl }));
       setToast({ message: "Profile updated successfully!", type: "success" });
     } catch {

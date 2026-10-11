@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { collection, query, where, limit, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { BadgeCheck, Star, Globe, Stethoscope, CalendarPlus, Loader2 } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import Toast, { ToastType } from "@/components/ui/Toast";
 
@@ -13,7 +13,7 @@ export default function LatestDoctors() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   
-  const { authenticated, user, login } = usePrivy();
+  const { authenticated, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -43,12 +43,12 @@ export default function LatestDoctors() {
   const handleViewAll = async () => {
     if (!authenticated || !user) {
       setToast({ message: "Please log in to view all doctors.", type: "error" });
-      login();
+      router.push('/auth');
       return;
     }
 
     try {
-      const userDocRef = doc(db, "users", user.id);
+      const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
@@ -56,9 +56,7 @@ export default function LatestDoctors() {
         router.push(`/${role}/dashboard/doctors`);
       } else {
         setToast({ message: "Please complete your registration first.", type: "error" });
-        setTimeout(() => {
-          router.push("/onboarding");
-        }, 1500);
+        setTimeout(() => { router.push("/auth"); }, 1500);
       }
     } catch (error) {
       console.error("Error checking user role:", error);
@@ -69,11 +67,12 @@ export default function LatestDoctors() {
   const handleBook = async (doctor: any) => {
     if (!authenticated || !user) {
       setToast({ message: "Please login or register as a patient first.", type: "error" });
+      router.push('/auth');
       return;
     }
 
     try {
-      const userDocRef = doc(db, "users", user.id);
+      const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
@@ -86,9 +85,7 @@ export default function LatestDoctors() {
         }
       } else {
         setToast({ message: "Please complete your registration first.", type: "error" });
-        setTimeout(() => {
-          router.push("/onboarding");
-        }, 1500);
+        setTimeout(() => { router.push("/auth"); }, 1500);
       }
     } catch (error) {
       console.error("Error checking user role:", error);

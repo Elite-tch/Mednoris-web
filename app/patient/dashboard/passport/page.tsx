@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
@@ -21,13 +21,13 @@ export default function PassportPage() {
 }
 
 function OriginalPassportPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [patient, setPatient] = useState<Record<string, string> | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "patients", user.id));
+      const snap = await getDoc(doc(db, "patients", user.uid));
       if (snap.exists()) setPatient(snap.data() as Record<string, string>);
     };
     fetch();

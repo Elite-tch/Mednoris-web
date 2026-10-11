@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, collection, query, where, orderBy, limit, onSnapshot, updateDoc, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Search, ChevronDown, LogOut, Menu, X, RotateCw } from "lucide-react";
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { navItems } from "./Sidebar";
 
 export default function Topbar() {
-  const { user, logout } = usePrivy();
+  const { user, logout } = useAuth();
   const [patientName, setPatientName] = useState("Patient");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -32,7 +32,7 @@ export default function Topbar() {
 
     // Real-time profile listener — updates avatar/name immediately after profile save
     const profileUnsub = onSnapshot(
-      doc(db, "patients", user.id),
+      doc(db, "patients", user.uid),
       (snap) => {
         if (snap.exists()) {
           const data = snap.data();
@@ -46,7 +46,7 @@ export default function Topbar() {
     // Unread notifications listener
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", user.id),
+      where("userId", "==", user.uid),
       where("read", "==", false),
       orderBy("createdAt", "desc"),
       limit(5)
@@ -206,7 +206,7 @@ export default function Topbar() {
                             try {
                               if (n.senderId) {
                                 // Fetch all unread notifications to clear all from this sender (bypassing the 5 limit)
-                                const q = query(collection(db, "notifications"), where("userId", "==", user?.id), where("read", "==", false));
+                                const q = query(collection(db, "notifications"), where("userId", "==", user?.uid), where("read", "==", false));
                                 const snap = await getDocs(q);
                                 const batch = writeBatch(db);
                                 let hasUpdates = false;

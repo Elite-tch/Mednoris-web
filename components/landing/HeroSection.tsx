@@ -2,9 +2,9 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { ShieldCheck, BadgeCheck, LockKeyhole } from 'lucide-react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 export default function HeroSection() {
-  const { login } = usePrivy();
+  const router = useRouter();
   return (
     <section className="relative bg-[#dedaee] md:bg-transparent md:pb-0 pb-10 w-full md:h-[90vh] flex items-center justify-center overflow-hidden ">
       <div className="grid grid-cols-1 md:grid-cols-2">
@@ -34,7 +34,7 @@ export default function HeroSection() {
             className="flex flex-col sm:flex-row gap-4"
           >
             <button
-              onClick={login}
+              onClick={() => router.push('/auth')}
               className="px-6 py-3 bg-brand-primary text-white text-md rounded-full shadow-lg shadow-brand-accent/20 cursor-pointer"
             >
               Get Started

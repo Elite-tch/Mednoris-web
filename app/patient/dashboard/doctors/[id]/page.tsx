@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Loader2, ArrowLeft, Star, MapPin, Globe,
   Award, Building, Clock, Calendar,
@@ -16,7 +16,7 @@ import Toast, { ToastType } from "@/components/ui/Toast";
 export default function PatientDoctorProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [doctor, setDoctor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);

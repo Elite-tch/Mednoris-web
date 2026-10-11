@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Check, CheckCheck, ArrowLeft, MessageCircle } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { 
   collection, query, where, onSnapshot, doc, 
@@ -36,7 +36,7 @@ const formatTime = (timestamp: any) => {
 };
 
 function ChatContent() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const doctorId = searchParams.get("doctorId");
 
@@ -53,17 +53,17 @@ function ChatContent() {
   useEffect(() => {
     const initChat = async () => {
       if (!user || !doctorId) return;
-      const chatId = `${user.id}_${doctorId}`;
+      const chatId = `${user.uid}_${doctorId}`;
       const chatRef = doc(db, "chats", chatId);
       const chatSnap = await getDoc(chatRef);
       if (!chatSnap.exists()) {
         const docSnap = await getDoc(doc(db, "doctors", doctorId));
-        const patientSnap = await getDoc(doc(db, "patients", user.id));
+        const patientSnap = await getDoc(doc(db, "patients", user.uid));
         if (docSnap.exists()) {
           const doctorData = docSnap.data();
           const patientData = patientSnap.exists() ? patientSnap.data() : null;
           await setDoc(chatRef, {
-            patientId: user.id,
+            patientId: user.uid,
             doctorId,
             patientName: patientData?.fullName || "Patient",
             patientImage: patientData?.profileImage || null,
@@ -86,7 +86,7 @@ function ChatContent() {
   // Listen to chats
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, "chats"), where("patientId", "==", user.id));
+    const q = query(collection(db, "chats"), where("patientId", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const chatList = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       chatList.sort((a, b) => (b.lastMessageTime?.toMillis() || 0) - (a.lastMessageTime?.toMillis() || 0));
@@ -108,7 +108,7 @@ function ChatContent() {
       const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       setMessages(msgs);
       const lastMsg = msgs[msgs.length - 1];
-      if (lastMsg && lastMsg.senderId !== user?.id && !lastMsg.seen) {
+      if (lastMsg && lastMsg.senderId !== user?.uid && !lastMsg.seen) {
         updateDoc(doc(db, "chats", activeChatId, "messages", lastMsg.id), { seen: true });
       }
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -123,7 +123,7 @@ function ChatContent() {
     if (!activeChat?.doctorId) return;
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", user.id),
+      where("userId", "==", user.uid),
       where("senderId", "==", activeChat.doctorId),
       where("type", "==", "message"),
       where("read", "==", false)
@@ -146,14 +146,14 @@ function ChatContent() {
     setInput("");
     try {
       await addDoc(collection(db, "chats", activeChatId, "messages"), {
-        senderId: user.id, text, createdAt: serverTimestamp(), seen: false
+        senderId: user.uid, text, createdAt: serverTimestamp(), seen: false
       });
       await updateDoc(doc(db, "chats", activeChatId), {
         lastMessage: text, lastMessageTime: serverTimestamp(), doctorUnread: true
       });
       if (activeChat?.doctorId) {
         await addDoc(collection(db, "notifications"), {
-          userId: activeChat.doctorId, senderId: user.id, title: "New Message",
+          userId: activeChat.doctorId, senderId: user.uid, title: "New Message",
           message: `${activeChat.patientName || "A patient"} sent you a message: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`,
           type: "message", read: false, link: "/doctor/dashboard/chat", createdAt: new Date().toISOString(),
         });

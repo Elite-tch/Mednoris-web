@@ -1,9 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
-import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 
 export default function CtaBanner() {
-  const { login } = usePrivy();
+  const router = useRouter();
   return (
     <section className="bg-brand-primary py-16 px-8 text-center text-white relative overflow-hidden">
       <div className="absolute inset-0 opacity-10 bg-[url('/pattern.svg')]"></div>
@@ -22,7 +22,7 @@ Store your medical records securely, book consultations with verified doctors, a
 </p>
 
 <button
-  onClick={login}
+  onClick={() => router.push('/auth')}
   className="px-8 py-3 bg-secondary text-white font-bold rounded-full hover:scale-105 transition-transform mt-4 shadow-lg cursor-pointer"
 >
   Create Free Account

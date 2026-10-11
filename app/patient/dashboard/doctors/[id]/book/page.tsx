@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { ArrowLeft, Clock, Calendar, Video, Phone, MessageCircle, Loader2, CheckCircle } from "lucide-react";
 import Toast, { ToastType } from "@/components/ui/Toast";
@@ -20,7 +20,7 @@ export default function BookingPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user } = useAuth();
 
   const doctorId = params.id as string;
   const selectedSlot = searchParams.get("slot");
@@ -159,21 +159,21 @@ export default function BookingPage() {
     try {
       // Fetch real patient name and email from Firestore since Privy user object might lack them
       let realPatientName = "Patient";
-      let realPatientEmail = user.email?.address || "";
+      let realPatientEmail = user.email || "";
       try {
         // 1. Try patients collection
-        const pSnap = await getDoc(doc(db, "patients", user.id));
+        const pSnap = await getDoc(doc(db, "patients", user.uid));
         if (pSnap.exists()) {
           realPatientName = pSnap.data().fullName || "Patient";
           realPatientEmail = pSnap.data().email || realPatientEmail;
         } else {
           // 2. Try users collection
-          const uSnap = await getDoc(doc(db, "users", user.id));
+          const uSnap = await getDoc(doc(db, "users", user.uid));
           if (uSnap.exists()) {
             realPatientName = uSnap.data().name || "Patient";
           } else {
             // 3. Try doctors collection (if doctor testing booking)
-            const dSnap = await getDoc(doc(db, "doctors", user.id));
+            const dSnap = await getDoc(doc(db, "doctors", user.uid));
             if (dSnap.exists()) {
               realPatientName = dSnap.data().fullName || "Patient";
             }
@@ -186,7 +186,7 @@ export default function BookingPage() {
       const slotDisplay = `${startTime} - ${endTime}${appointmentDate ? ` on ${new Date(appointmentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ` (${day})`}`;
 
       await addDoc(collection(db, "appointments"), {
-        patientId: user.id,
+        patientId: user.uid,
         patientName: realPatientName,
         patientEmail: realPatientEmail,
         doctorId: doctor.id,
@@ -218,7 +218,7 @@ export default function BookingPage() {
 
       // Notify patient: booking confirmed
       await addDoc(collection(db, "notifications"), {
-        userId: user.id,
+        userId: user.uid,
         title: "Appointment Confirmed",
         message: `Your ${form.consultationType} consultation with Dr. ${doctor.fullName} is scheduled for ${slotDisplay}.`,
         type: "appointment",

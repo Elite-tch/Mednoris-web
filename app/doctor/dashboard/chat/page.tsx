@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Check, CheckCheck, ArrowLeft, MessageCircle, FileText } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import {
   collection, query, where, onSnapshot, doc, getDoc,
@@ -22,7 +22,7 @@ const formatTime = (timestamp: any) => {
 };
 
 export default function DoctorChatPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
@@ -33,7 +33,7 @@ export default function DoctorChatPage() {
   // Listen to conversations for current doctor
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, "chats"), where("doctorId", "==", user.id));
+    const q = query(collection(db, "chats"), where("doctorId", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const chatList = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       chatList.sort((a, b) => (b.lastMessageTime?.toMillis() || 0) - (a.lastMessageTime?.toMillis() || 0));
@@ -51,7 +51,7 @@ export default function DoctorChatPage() {
       const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       setMessages(msgs);
       const lastMsg = msgs[msgs.length - 1];
-      if (lastMsg && lastMsg.senderId !== user?.id && !lastMsg.seen) {
+      if (lastMsg && lastMsg.senderId !== user?.uid && !lastMsg.seen) {
         updateDoc(doc(db, "chats", activeChatId, "messages", lastMsg.id), { seen: true });
       }
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -66,7 +66,7 @@ export default function DoctorChatPage() {
     if (!activeChat?.patientId) return;
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", user.id),
+      where("userId", "==", user.uid),
       where("senderId", "==", activeChat.patientId),
       where("type", "==", "message"),
       where("read", "==", false)
@@ -87,14 +87,14 @@ export default function DoctorChatPage() {
     setInput("");
     try {
       await addDoc(collection(db, "chats", activeChatId, "messages"), {
-        senderId: user.id, text, createdAt: serverTimestamp(), seen: false
+        senderId: user.uid, text, createdAt: serverTimestamp(), seen: false
       });
       await updateDoc(doc(db, "chats", activeChatId), {
         lastMessage: text, lastMessageTime: serverTimestamp(), patientUnread: true, doctorUnread: false
       });
       if (activeChat?.patientId) {
         await addDoc(collection(db, "notifications"), {
-          userId: activeChat.patientId, senderId: user.id, title: "New Message from Doctor",
+          userId: activeChat.patientId, senderId: user.uid, title: "New Message from Doctor",
           message: `Dr. ${activeChat.doctorName || "Your doctor"} sent you a message: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`,
           type: "message", read: false, link: "/patient/dashboard/chat", createdAt: new Date().toISOString(),
         });

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { Bell, Shield, Wallet, LogOut, Moon } from "lucide-react";
 
 const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
@@ -12,7 +12,7 @@ const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void 
 );
 
 export default function DoctorSettingsPage() {
-  const { logout, user } = usePrivy();
+  const { logout, user } = useAuth();
   const [settings, setSettings] = useState({
     newAppointments: true,
     patientMessages: true,
@@ -62,7 +62,7 @@ export default function DoctorSettingsPage() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-brand-primary">Connected Account</p>
-          <p className="text-xs text-gray-500 truncate">{user?.email?.address || user?.wallet?.address || "—"}</p>
+          <p className="text-xs text-gray-500 truncate">{user?.email || "—"}</p>
         </div>
         <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full shrink-0">Verified</span>
       </motion.div>

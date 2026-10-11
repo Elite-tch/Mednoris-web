@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Loader2, ArrowLeft, MessageSquare, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
@@ -16,7 +16,7 @@ import { useCallTimer } from "@/hooks/useCallTimer";
 export default function ConsultationRoomPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [appointment, setAppointment] = useState<any>(null);
@@ -45,9 +45,9 @@ export default function ConsultationRoomPage() {
           
           setAppointment(data);
           
-          if (data.doctorId === user.id) {
+          if (data.doctorId === user.uid) {
             setIsDoctor(true);
-          } else if (data.patientId === user.id) {
+          } else if (data.patientId === user.uid) {
             setIsDoctor(false);
           } else {
             setAppointment(null);
@@ -198,7 +198,7 @@ export default function ConsultationRoomPage() {
             </div>
 
             <div className={`absolute inset-0 transition-opacity duration-200 ${activeRightPanelTab === 'chat' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-               <ConsultationChat appointmentId={id as string} userId={user.id} />
+               <ConsultationChat appointmentId={id as string} userId={user.uid} />
             </div>
           </div>
         </section>

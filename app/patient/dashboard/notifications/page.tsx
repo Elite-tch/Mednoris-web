@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { collection, query, where, orderBy, onSnapshot, doc, writeBatch, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 
 export default function PatientNotificationsPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,7 +16,7 @@ export default function PatientNotificationsPage() {
     if (!user) return;
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", user.id),
+      where("userId", "==", user.uid),
       orderBy("createdAt", "desc")
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {

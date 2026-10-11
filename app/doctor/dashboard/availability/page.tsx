@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Save, Loader2, Clock, DollarSign, Plus, Trash2, CheckCircle, CalendarDays } from "lucide-react";
@@ -23,7 +23,7 @@ const defaultSchedule = (): Schedule =>
   );
 
 export default function DoctorAvailabilityPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fee, setFee] = useState("50");
@@ -34,7 +34,7 @@ export default function DoctorAvailabilityPage() {
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "doctors", user.id));
+      const snap = await getDoc(doc(db, "doctors", user.uid));
       if (snap.exists()) {
         const data = snap.data();
         if (data.availability) setSchedule(data.availability);
@@ -106,7 +106,7 @@ export default function DoctorAvailabilityPage() {
     if (!user) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "doctors", user.id), {
+      await updateDoc(doc(db, "doctors", user.uid), {
         availability: schedule,
         consultationFee: fee,
       });

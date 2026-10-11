@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
@@ -17,7 +17,7 @@ const fadeUp = (delay = 0) => ({
 });
 
 export default function DashboardPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [patient, setPatient] = useState<Record<string, string> | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [hour] = useState(new Date().getHours());
@@ -28,7 +28,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchPatient = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "patients", user.id));
+      const snap = await getDoc(doc(db, "patients", user.uid));
       if (snap.exists()) setPatient(snap.data() as Record<string, string>);
     };
     fetchPatient();
@@ -38,7 +38,7 @@ export default function DashboardPage() {
     if (!user) return;
     const q = query(
       collection(db, "appointments"),
-      where("patientId", "==", user.id)
+      where("patientId", "==", user.uid)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const appts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));

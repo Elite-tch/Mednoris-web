@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -10,7 +10,7 @@ import Link from "next/link";
 import Toast, { ToastType } from "@/components/ui/Toast";
 
 export default function DoctorProfilePage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -40,7 +40,7 @@ export default function DoctorProfilePage() {
     const fetch = async () => {
       if (!user) return;
       setLoading(true);
-      const snap = await getDoc(doc(db, "doctors", user.id));
+      const snap = await getDoc(doc(db, "doctors", user.uid));
       if (snap.exists()) setForm(snap.data() as typeof form);
       setLoading(false);
     };
@@ -58,11 +58,11 @@ export default function DoctorProfilePage() {
       let currentSlug = form.slug;
       if (!currentSlug && form.fullName) {
         const baseSlug = form.fullName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
-        const shortId = user.id.split(":").pop()?.substring(0, 6) || Math.random().toString(36).substring(2, 8);
+        const shortId = user.uid.substring(0, 6) || Math.random().toString(36).substring(2, 8);
         currentSlug = `${baseSlug}-${shortId}`;
       }
 
-      await updateDoc(doc(db, "doctors", user.id), { ...form, profileImage: imageUrl, slug: currentSlug });
+      await updateDoc(doc(db, "doctors", user.uid), { ...form, profileImage: imageUrl, slug: currentSlug });
       setForm({ ...form, profileImage: imageUrl, slug: currentSlug });
       setToast({ message: "Profile updated successfully!", type: "success" });
     } catch {

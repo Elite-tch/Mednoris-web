@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { LogOut, Search, Menu, X, RotateCw } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { navItems } from "./Sidebar";
 
 export default function AdminTopbar() {
-  const { logout } = usePrivy();
+  const { logout } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { CalendarDays, Clock, CheckCircle2, XCircle, CalendarClock, Video, User, Loader2 } from "lucide-react";
 import { collection, query, where, onSnapshot, getDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import Toast, { ToastType } from "@/components/ui/Toast";
 
@@ -53,7 +53,7 @@ const calculateDynamicStatus = (appointment: any) => {
 };
 
 export default function DoctorAppointmentsPage() {
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [active, setActive] = useState("Scheduled");
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ export default function DoctorAppointmentsPage() {
 
     const q = query(
       collection(db, "appointments"),
-      where("doctorId", "==", user.id)
+      where("doctorId", "==", user.uid)
     );
 
     const patientCache: Record<string, { name: string; image: string | null }> = {};
@@ -164,7 +164,7 @@ export default function DoctorAppointmentsPage() {
       // Email notifications
       if (targetAppt) {
         // 1. Notify the doctor (confirmation)
-        const targetDoctorEmail = user?.email?.address || user?.wallet?.address;
+        const targetDoctorEmail = user?.email;
         if (targetDoctorEmail && targetDoctorEmail.includes("@")) {
           fetch("/api/notify-doctor", {
             method: "POST",

@@ -13,7 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -30,13 +30,13 @@ export const navItems = [
 
 export default function DoctorSidebar() {
   const pathname = usePathname();
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const [status, setStatus] = useState("Pending Verification");
 
   useEffect(() => {
     const fetch = async () => {
       if (!user) return;
-      const snap = await getDoc(doc(db, "doctors", user.id));
+      const snap = await getDoc(doc(db, "doctors", user.uid));
       if (snap.exists() && snap.data().status) {
         setStatus(snap.data().status);
       }

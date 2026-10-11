@@ -12,7 +12,7 @@ import {
   doc, getDoc, collection, query, where, getDocs, orderBy
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ function useCountdown(appointment: any | null) {
 export default function PatientPublicProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user } = useAuth();
   const patientId = params.id as string;
 
   const [patient, setPatient] = useState<any>(null);
@@ -157,7 +157,7 @@ export default function PatientPublicProfilePage() {
           const scheduledQuery = query(
             collection(db, "appointments"),
             where("patientId", "==", effectivePatientId),
-            where("doctorId", "==", user.id),
+            where("doctorId", "==", user.uid),
             where("status", "==", "Scheduled")
           );
           const scheduledSnap = await getDocs(scheduledQuery);

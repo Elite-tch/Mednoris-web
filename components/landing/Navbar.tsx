@@ -1,14 +1,14 @@
 "use client";
 
 import Link from 'next/link';
-import { usePrivy } from '@privy-io/react-auth';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navLinks = [
   { href: "/",            label: "Home" },
@@ -19,26 +19,23 @@ const navLinks = [
 ];
 
 export default function Navbar() {
-  const { login, logout, authenticated, user } = usePrivy();
+  const { logout, authenticated, user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [role, setRole] = useState("patient");
-  const [isFetchingRole, setIsFetchingRole] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchRole = async () => {
       if (authenticated && user) {
-        setIsFetchingRole(true);
         try {
-          const docRef = doc(db, "users", user.id);
+          const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists() && docSnap.data().role) {
             setRole(docSnap.data().role.toLowerCase());
           }
         } catch (e) {
           console.error("Error fetching user role:", e);
-        } finally {
-          setIsFetchingRole(false);
         }
       }
     };
@@ -46,22 +43,20 @@ export default function Navbar() {
   }, [authenticated, user]);
 
   const getDisplayName = () => {
-    if (user?.email?.address) {
-      const email = user.email.address;
+    if (user?.email) {
+      const email = user.email;
       return email.length > 15 ? email.slice(0, 12) + "..." : email;
-    }
-    if (user?.wallet?.address) {
-      return user.wallet.address.slice(0, 6) + "...";
     }
     return "User";
   };
 
   return (
-    <nav className="w-full  text-brand-primary bg-[#f8f7fb] px-8 flex justify-between items-center shadow-lg sticky top-0 z-50">
-      <div className=" h-20 sm:h-20">
+    <nav className="w-full text-brand-primary bg-[#f8f7fb] px-8 flex justify-between items-center shadow-lg sticky top-0 z-50">
+      <div className="h-20 sm:h-20">
         <Link href='/'>
-        <Image src='/logo.png' alt='logo'  width={80} height={42}  /> </Link>   
-        </div>
+          <Image src='/logo.png' alt='logo' width={80} height={42} />
+        </Link>
+      </div>
       
       <div className="hidden md:flex gap-8 text-sm uppercase tracking-wide">
         {navLinks.map(({ href, label }) => {
@@ -110,14 +105,14 @@ export default function Navbar() {
         ) : (
           <>
             <button 
-              onClick={login} 
+              onClick={() => router.push('/auth')} 
               className="px-5 py-2 text-sm font-semibold rounded-full border border-brand-primary hover:bg-white hover:text-brand-primary transition-colors cursor-pointer"
             >
               Login
             </button>
             <button 
-              onClick={login} 
-              className="px-5 py-2 text-sm font-semibold rounded-full bg-brand-primary text-[#f8f7fb]  hover:opacity-90 transition-opacity cursor-pointer"
+              onClick={() => router.push('/auth')} 
+              className="px-5 py-2 text-sm font-semibold rounded-full bg-brand-primary text-[#f8f7fb] hover:opacity-90 transition-opacity cursor-pointer"
             >
               Sign Up
             </button>
@@ -201,13 +196,13 @@ export default function Navbar() {
                 ) : (
                   <>
                     <button 
-                      onClick={() => { login(); setIsMobileMenuOpen(false); }} 
+                      onClick={() => { router.push('/auth'); setIsMobileMenuOpen(false); }} 
                       className="w-full py-3 text-center text-sm font-semibold rounded-xl border border-brand-primary text-brand-primary hover:bg-brand-primary/5 transition-colors"
                     >
                       Login
                     </button>
                     <button 
-                      onClick={() => { login(); setIsMobileMenuOpen(false); }} 
+                      onClick={() => { router.push('/auth'); setIsMobileMenuOpen(false); }} 
                       className="w-full py-3 text-center text-sm font-semibold rounded-xl bg-brand-primary text-white hover:opacity-90 transition-opacity"
                     >
                       Sign Up
