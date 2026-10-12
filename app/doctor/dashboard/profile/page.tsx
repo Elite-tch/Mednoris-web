@@ -87,7 +87,7 @@ export default function DoctorProfilePage() {
             <p className="text-gray-400 text-sm">Manage how patients see you on the Mednoris platform.</p>
           </div>
           <Link 
-            href={`/doctor/dashboard/doctors/${form.slug || user?.id}`}
+            href={`/doctor/dashboard/doctors/${form.slug || user?.uid}`}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-primary/10 text-brand-primary font-bold rounded-xl hover:bg-brand-primary/20 transition-colors text-sm shrink-0"
           >
             Preview Public Profile <ExternalLink size={16} />

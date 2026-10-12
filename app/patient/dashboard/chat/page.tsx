@@ -251,7 +251,7 @@ function ChatContent() {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/50">
             <AnimatePresence>
               {messages.map((m) => {
-                const isMine = m.senderId === user?.id;
+                const isMine = m.senderId === user?.uid;
                 return (
                   <motion.div key={m.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     className={`flex gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
