@@ -198,7 +198,7 @@ export default function DoctorChatPage() {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             <AnimatePresence>
               {messages.map((m) => {
-                const isMine = m.senderId === user?.id;
+                const isMine = m.senderId === user?.uid;
                 return (
                   <motion.div key={m.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
